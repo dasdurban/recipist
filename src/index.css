@@ -1,0 +1,131 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --surface: 255 255 255;
+  --surface-2: 248 250 252;
+  --surface-3: 241 245 249;
+  --content: 15 23 42;
+  --content-muted: 100 116 139;
+  --line: 226 232 240;
+  --brand: 15 118 110;
+}
+
+.dark {
+  --surface: 12 17 28;
+  --surface-2: 18 25 40;
+  --surface-3: 30 41 59;
+  --content: 241 245 249;
+  --content-muted: 148 163 184;
+  --line: 45 58 78;
+  --brand: 45 212 191;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-surface text-content antialiased;
+    margin: 0;
+    font-family: theme('fontFamily.sans');
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  * {
+    -webkit-font-smoothing: antialiased;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  input,
+  textarea,
+  select {
+    @apply bg-surface-2 border border-line rounded-lg px-3 py-2 text-content outline-none;
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus {
+    @apply ring-2 ring-brand/40 border-brand/50;
+  }
+
+  ::placeholder {
+    color: rgb(var(--content-muted) / 0.7);
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium
+      transition-colors disabled:opacity-50 disabled:pointer-events-none select-none;
+  }
+  .btn-primary {
+    @apply btn bg-brand text-white hover:opacity-90;
+  }
+  .btn-ghost {
+    @apply btn text-content hover:bg-surface-3;
+  }
+  .btn-soft {
+    @apply btn bg-surface-3 text-content hover:bg-line;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700;
+  }
+  .card {
+    @apply bg-surface border border-line rounded-2xl;
+  }
+  .field-label {
+    @apply block text-xs font-semibold uppercase tracking-wide text-content-muted mb-1.5;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--content-muted) / 0.3);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--content-muted) / 0.5);
+  background-clip: content-box;
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.safe-x {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Prevent iOS zoom on inputs */
+@media (max-width: 640px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
