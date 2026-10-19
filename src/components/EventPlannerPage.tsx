@@ -13,6 +13,7 @@ import { useApp } from '../store/useApp'
 import { Modal } from './ui/Modal'
 import { parseIngredient } from '../lib/nutrition'
 import { combineIngredients } from '../lib/combineIngredients'
+import { allRecipesColor, colorFor } from '../lib/colors'
 import type { EventPlan, EventShoppingItem, EventTodo, Recipe } from '../types'
 
 const PLANNER_HEX = '#7c3aed'
@@ -229,6 +230,8 @@ function EventDetail({
   onDelete: () => void
 }) {
   const recipes = useApp((s) => s.recipes)
+  const categories = useApp((s) => s.categories)
+  const settings = useApp((s) => s.settings)
   const allEventRecipes = useApp((s) => s.eventRecipes)
   const eventRecipes = useMemo(
     () => allEventRecipes.filter((l) => l.eventId === event.id),
@@ -260,6 +263,19 @@ function EventDetail({
         .filter((r): r is Recipe => Boolean(r)),
     [eventRecipes, recipesById],
   )
+
+  /** Category colour per recipe — the placeholder tint when a recipe has no photo. */
+  const colorByRecipe = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const r of recipes) {
+      const category = categories.find((c) => c.id === r.categoryId)
+      map.set(
+        r.id,
+        category ? colorFor(category.colorName, category.colorSet) : allRecipesColor(settings),
+      )
+    }
+    return map
+  }, [recipes, categories, settings])
 
   const candidates = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -342,12 +358,33 @@ function EventDetail({
           <div className="flex flex-wrap gap-2">
             {included.map((recipe) => {
               const link = eventRecipes.find((l) => l.recipeId === recipe.id)
+              const hex = colorByRecipe.get(recipe.id) ?? PLANNER_HEX
               return (
-                <span
+                <div
                   key={recipe.id}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-2 pl-3 pr-1.5 py-1.5 text-sm"
+                  className="group flex items-center gap-2.5 rounded-xl border border-line bg-surface-2 p-1.5 pr-2.5"
                 >
-                  {recipe.title}
+                  <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-surface-3">
+                    {recipe.photo ? (
+                      <img
+                        src={recipe.photo}
+                        alt={recipe.title}
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div
+                        className="h-full w-full"
+                        style={{
+                          background: `linear-gradient(135deg, ${hex}55, ${hex}1a 70%, ${hex}0d)`,
+                        }}
+                        aria-hidden
+                      />
+                    )}
+                  </div>
+                  <span className="text-sm font-medium max-w-[14rem] truncate" title={recipe.title}>
+                    {recipe.title}
+                  </span>
                   <button
                     className="btn-ghost !p-1 rounded-full text-content-muted hover:text-red-600"
                     aria-label={`Remove ${recipe.title} from event`}
@@ -355,7 +392,7 @@ function EventDetail({
                   >
                     <X size={13} />
                   </button>
-                </span>
+                </div>
               )
             })}
           </div>
