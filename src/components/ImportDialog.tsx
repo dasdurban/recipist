@@ -4,6 +4,7 @@ import clsx from 'clsx'
 import type { Recipe } from '../types'
 import { useApp } from '../store/useApp'
 import { Modal } from './ui/Modal'
+import { CategoryPicker, effectiveCategoryIds } from './ui/CategoryPicker'
 import { importFromUrl, toRecipe, type ImportedRecipe } from '../lib/importRecipe'
 import { imageFileToDataUrl, ocrImage, parseOcrText, remoteImageToDataUrl } from '../lib/ocr'
 
@@ -25,7 +26,7 @@ export function ImportDialog({
   const toast = useApp((s) => s.toast)
 
   const [tab, setTab] = useState<Tab>('link')
-  const [categoryId, setCategoryId] = useState(defaultCategoryId ?? '')
+  const [categoryIds, setCategoryIds] = useState<string[]>(defaultCategoryId ? [defaultCategoryId] : [])
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
@@ -34,14 +35,14 @@ export function ImportDialog({
   const photoInput = useRef<HTMLInputElement>(null)
   const cameraInput = useRef<HTMLInputElement>(null)
 
-  // Re-sync the target category every time the dialog opens: a real category id
-  // (imported from a category page) preselects it; no context (homepage /
-  // favorites) leaves it empty so the user picks one.
+  // Re-sync the target categories every time the dialog opens: a real category
+  // id (imported from a category page) preselects it; no context (homepage /
+  // favorites) starts from the default first category.
   useEffect(() => {
     if (!open) return
     const valid =
       defaultCategoryId && useApp.getState().categories.some((c) => c.id === defaultCategoryId)
-    setCategoryId(valid ? defaultCategoryId! : '')
+    setCategoryIds(valid ? [defaultCategoryId!] : [])
   }, [open, defaultCategoryId])
 
   function reset() {
@@ -103,10 +104,11 @@ export function ImportDialog({
   }
 
   async function finish(review: boolean) {
-    if (!preview || !categoryId) return
+    const targetCategoryIds = effectiveCategoryIds(categoryIds, categories)
+    if (!preview || targetCategoryIds.length === 0) return
     setBusy(true)
     try {
-      const recipe = toRecipe(preview, categoryId)
+      const recipe = toRecipe(preview, targetCategoryIds)
       if (scannedPhoto) {
         recipe.photo = scannedPhoto
       } else if (recipe.photo && /^https?:/i.test(recipe.photo)) {
@@ -122,7 +124,7 @@ export function ImportDialog({
     }
   }
 
-  const canFinish = Boolean(preview && categoryId)
+  const canFinish = Boolean(preview && effectiveCategoryIds(categoryIds, categories).length)
 
   return (
     <Modal
@@ -236,20 +238,7 @@ export function ImportDialog({
       )}
 
       <div className="mt-4">
-        <label className="field-label">Save into category</label>
-        <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="w-full">
-          <option value="">Choose a category…</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        {!categoryId && (
-          <p className="text-xs text-content-muted mt-1.5">
-            Pick where this recipe should be saved.
-          </p>
-        )}
+        <CategoryPicker categories={categories} value={categoryIds} onChange={setCategoryIds} />
       </div>
 
       {preview && (

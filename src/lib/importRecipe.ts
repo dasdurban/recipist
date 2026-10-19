@@ -297,13 +297,13 @@ export async function importFromUrl(url: string, proxy: string): Promise<Importe
   )
 }
 
-/** Converts an ImportedRecipe into a storable Recipe bound to a category. */
-export function toRecipe(imported: ImportedRecipe, categoryId: string): Recipe {
+/** Converts an ImportedRecipe into a storable Recipe bound to one to three categories. */
+export function toRecipe(imported: ImportedRecipe, categoryIds: string[]): Recipe {
   const now = Date.now()
   const ingredients: Ingredient[] = imported.ingredients.map((line) => ingredientFromRaw(line))
   const recipe: Recipe = {
     id: uid('rec_'),
-    categoryIds: categoryId ? [categoryId] : [],
+    categoryIds: categoryIds.filter(Boolean).slice(0, 3),
     title: imported.title,
     description: imported.description,
     photo: imported.photo,

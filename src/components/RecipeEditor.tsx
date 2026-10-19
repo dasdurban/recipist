@@ -7,6 +7,7 @@ import { allRecipesColor, colorFor } from '../lib/colors'
 import { ingredientFromRaw, estimateNutrition } from '../lib/nutrition'
 import { imageFileToDataUrl } from '../lib/ocr'
 import { HealthScore, MacroGrid } from './ui/NutritionBadge'
+import { CategoryPicker, effectiveCategoryIds } from './ui/CategoryPicker'
 
 export function emptyRecipe(categoryId: string): Recipe {
   const now = Date.now()
@@ -43,39 +44,6 @@ export function RecipeEditor({
 
   const category = categories.find((c) => c.id === draft.categoryIds[0]) ?? categories[0]
   const hex = category ? colorFor(category.colorName, category.colorSet) : allRecipesColor(settings)
-
-  /** The category selectors actually shown — at least one when categories exist. */
-  const selectedCategoryIds = useMemo(() => {
-    const ids = draft.categoryIds.filter((id) => categories.some((c) => c.id === id))
-    if (ids.length) return ids
-    return categories[0] ? [categories[0].id] : []
-  }, [draft.categoryIds, categories])
-
-  function setCategoryAt(index: number, id: string) {
-    setDraft((d) => {
-      const next = [...selectedCategoryIds]
-      next[index] = id
-      return { ...d, categoryIds: next.filter(Boolean) }
-    })
-  }
-
-  function addCategorySlot() {
-    setDraft((d) => {
-      const next = [...selectedCategoryIds]
-      if (next.length >= 3) return d
-      const used = new Set(next)
-      const extra = categories.find((c) => !used.has(c.id))
-      return extra ? { ...d, categoryIds: [...next, extra.id] } : d
-    })
-  }
-
-  function removeCategoryAt(index: number) {
-    if (index === 0) return
-    setDraft((d) => ({
-      ...d,
-      categoryIds: selectedCategoryIds.filter((_, i) => i !== index),
-    }))
-  }
 
   const nutrition = useMemo(
     () => estimateNutrition(draft.ingredients, draft.servings),
@@ -138,10 +106,7 @@ export function RecipeEditor({
         .map((i) => (i.raw.trim() ? ingredientFromRaw(i.raw, i.section) : i))
         .filter((i) => i.raw.trim().length > 0)
       const instructions = draft.instructions.map((s) => s.trim()).filter(Boolean)
-      const categoryIds = Array.from(
-        new Set(selectedCategoryIds.filter((id) => categories.some((c) => c.id === id))),
-      ).slice(0, 3)
-      if (!categoryIds.length && categories[0]) categoryIds.push(categories[0].id)
+      const categoryIds = effectiveCategoryIds(draft.categoryIds, categories)
 
       const final: Recipe = {
         ...draft,
@@ -251,58 +216,11 @@ export function RecipeEditor({
           />
         </div>
 
-        <div>
-          <div className="flex items-baseline justify-between gap-3">
-            <label className="field-label">Categories</label>
-            <span className="text-[11px] text-content-muted mb-1.5">Up to 3</span>
-          </div>
-          <div className="space-y-2">
-            {selectedCategoryIds.map((categoryId, index) => (
-              <div key={index} className="flex items-center gap-2">
-                <select
-                  value={categoryId}
-                  onChange={(e) => setCategoryAt(index, e.target.value)}
-                  className="w-full"
-                  aria-label={index === 0 ? 'Primary category' : `Category ${index + 1}`}
-                >
-                  {categories.map((c) => (
-                    <option
-                      key={c.id}
-                      value={c.id}
-                      disabled={c.id !== categoryId && selectedCategoryIds.includes(c.id)}
-                    >
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-                {index > 0 && (
-                  <button
-                    type="button"
-                    className="btn-ghost !p-2 text-content-muted hover:text-red-600 shrink-0"
-                    onClick={() => removeCategoryAt(index)}
-                    aria-label="Remove category"
-                    title="Remove category"
-                  >
-                    <X size={15} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-          {selectedCategoryIds.length < 3 && categories.length > selectedCategoryIds.length && (
-            <button
-              type="button"
-              className="btn-ghost !px-2 !py-1 text-xs mt-2"
-              onClick={addCategorySlot}
-            >
-              <Plus size={13} /> Add another category
-            </button>
-          )}
-          <p className="text-[11px] text-content-muted mt-1.5">
-            Stored once and shown in every category you pick. The first one sets the recipe&apos;s
-            colour.
-          </p>
-        </div>
+        <CategoryPicker
+          categories={categories}
+          value={draft.categoryIds}
+          onChange={(categoryIds) => patch({ categoryIds })}
+        />
 
         <div className="grid grid-cols-2 gap-3">
           <div>
