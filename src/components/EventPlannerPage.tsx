@@ -12,6 +12,7 @@ import {
 import { useApp } from '../store/useApp'
 import { Modal } from './ui/Modal'
 import { parseIngredient } from '../lib/nutrition'
+import { combineIngredients } from '../lib/combineIngredients'
 import type { EventPlan, EventShoppingItem, EventTodo, Recipe } from '../types'
 
 const PLANNER_HEX = '#7c3aed'
@@ -26,31 +27,7 @@ function itemLabel(item: { name: string; quantity?: number; unit?: string; raw?:
   return parts.join(' ').trim()
 }
 
-/** Aggregate ingredients of many recipes by normalized name (sum qty on match). */
-function aggregateIngredients(recipes: Recipe[]) {
-  const map = new Map<string, { key: string; name: string; quantity?: number; unit?: string; raw?: string }>()
-  for (const recipe of recipes) {
-    for (const ing of recipe.ingredients) {
-      const key = ing.name.trim().toLowerCase()
-      if (!key) continue
-      const existing = map.get(key)
-      if (!existing) {
-        map.set(key, { key, name: ing.name, quantity: ing.quantity, unit: ing.unit, raw: ing.raw })
-      } else if (
-        existing.unit === ing.unit &&
-        existing.quantity !== undefined &&
-        ing.quantity !== undefined
-      ) {
-        existing.quantity += ing.quantity
-      } else {
-        existing.quantity = undefined
-        existing.unit = ing.unit || existing.unit
-      }
-    }
-  }
-  return map
-}
-
+/** e.g. "2026-11-26" -> "Thu, Nov 26" */
 function fmtDate(date?: string): string | undefined {
   if (!date) return undefined
   const d = new Date(`${date}T00:00:00`)
@@ -553,7 +530,7 @@ function IngredientsColumn({ event, included }: { event: EventPlan; included: Re
   )
   const togglePantry = useApp((s) => s.toggleEventPantry)
 
-  const ingredients = useMemo(() => [...aggregateIngredients(included).values()], [included])
+  const ingredients = useMemo(() => combineIngredients(included), [included])
   const pantryKeys = useMemo(() => {
     const set = new Set<string>()
     for (const c of checks) if (c.pantry) set.add(c.key)
@@ -593,7 +570,7 @@ function IngredientsColumn({ event, included }: { event: EventPlan; included: Re
                 <span
                   className={`flex-1 min-w-0 text-sm ${inPantry ? 'line-through text-content-muted' : ''}`}
                 >
-                  {itemLabel(ing)}
+                  {ing.label}
                   {inPantry && (
                     <span className="ml-1.5 text-[10px] uppercase tracking-wide text-content-muted">
                       pantry

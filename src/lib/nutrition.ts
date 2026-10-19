@@ -53,7 +53,7 @@ export function normalizeName(text: string): string {
     .trim()
 }
 
-function stripNoise(text: string): string {
+export function stripNoise(text: string): string {
   return normalizeName(text)
     .split(' ')
     .filter((w) => w && !NOISE_WORDS.has(w))

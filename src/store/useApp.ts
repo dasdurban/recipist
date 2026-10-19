@@ -15,6 +15,7 @@ import type {
 } from '../types'
 import { db, DEFAULT_SETTINGS, loadSettings, saveSettings, uid } from '../db/database'
 import { pickColorForName } from '../lib/colors'
+import { combineIngredients } from '../lib/combineIngredients'
 import { playTimerDing } from '../lib/timerSound'
 
 export interface Toast {
@@ -137,11 +138,6 @@ function sortCategories(cats: Category[]): Category[] {
 
 function sortLists(lists: ShoppingList[]): ShoppingList[] {
   return [...lists].sort((a, b) => b.updatedAt - a.updatedAt || a.name.localeCompare(b.name))
-}
-
-/** Normalized key used to match the same ingredient across recipes. */
-function ingredientKey(name: string): string {
-  return name.trim().toLowerCase()
 }
 
 // Singleton countdown ticker so the timer keeps running even when the panel is
@@ -548,36 +544,17 @@ export const useApp = create<AppState>((set, get) => ({
 
   /**
    * Keeps an event's automatic shopping rows in sync with the ingredients of
-   * its recipes: adds rows for new ingredients, removes rows for ingredients
-   * no longer needed or now flagged "in pantry". Manual rows are untouched.
+   * its recipes: adds rows for new ingredients, updates the combined label when
+   * quantities change, and removes rows for ingredients no longer needed or now
+   * flagged "in pantry". Manual rows are untouched.
    */
   async syncEventShoppingItems(eventId) {
     const links = await db.eventRecipes.where('eventId').equals(eventId).toArray()
     const recipeIds = links.map((l) => l.recipeId)
     const recipes = recipeIds.length ? await db.recipes.where('id').anyOf(recipeIds).toArray() : []
 
-    // aggregate ingredients by normalized key (sum quantities when units match)
-    const wanted = new Map<string, { name: string; quantity?: number; unit?: string; raw?: string }>()
-    for (const recipe of recipes) {
-      for (const ing of recipe.ingredients) {
-        const key = ingredientKey(ing.name)
-        if (!key) continue
-        const existing = wanted.get(key)
-        if (!existing) {
-          wanted.set(key, { name: ing.name, quantity: ing.quantity, unit: ing.unit, raw: ing.raw })
-        } else if (
-          existing.unit === ing.unit &&
-          existing.quantity !== undefined &&
-          ing.quantity !== undefined
-        ) {
-          existing.quantity += ing.quantity
-        } else {
-          // unit mismatch or missing quantities — keep a label, drop the sum
-          existing.quantity = undefined
-          existing.unit = ing.unit || existing.unit
-        }
-      }
-    }
+    // combine similar ingredients across the event's recipes (sums quantities)
+    const wanted = combineIngredients(recipes)
 
     const [rows, checks] = await Promise.all([
       db.eventShoppingItems.where('eventId').equals(eventId).toArray(),
@@ -588,26 +565,37 @@ export const useApp = create<AppState>((set, get) => ({
 
     const toDelete: string[] = []
     for (const row of autoRows) {
-      if (!wanted.has(row.key) || pantryKeys.has(row.key)) toDelete.push(row.id)
+      if (!wanted.some((w) => w.key === row.key) || pantryKeys.has(row.key)) toDelete.push(row.id)
     }
     const now = Date.now()
     const toPut: EventShoppingItem[] = []
-    for (const [key, ing] of wanted) {
-      if (pantryKeys.has(key)) continue
-      if (autoRows.some((r) => r.key === key)) continue
-      toPut.push({
-        id: uid('evti_'),
-        eventId,
-        key,
-        name: ing.name,
-        quantity: ing.quantity,
-        unit: ing.unit,
-        raw: ing.raw,
-        manual: false,
-        checked: false,
-        createdAt: now,
-      })
+    for (const ing of wanted) {
+      if (pantryKeys.has(ing.key)) continue
+      const existing = autoRows.find((r) => r.key === ing.key)
+      if (!existing) {
+        toPut.push({
+          id: uid('evti_'),
+          eventId,
+          key: ing.key,
+          name: ing.name,
+          quantity: ing.quantity,
+          unit: ing.unit,
+          raw: ing.label,
+          manual: false,
+          checked: false,
+          createdAt: now,
+        })
+      } else if (
+        existing.raw !== ing.label ||
+        existing.name !== ing.name ||
+        existing.quantity !== ing.quantity ||
+        existing.unit !== ing.unit
+      ) {
+        // quantities were combined differently now — refresh the row's label
+        toPut.push({ ...existing, name: ing.name, quantity: ing.quantity, unit: ing.unit, raw: ing.label })
+      }
     }
+    if (!toDelete.length && !toPut.length) return
     await db.transaction('rw', db.eventShoppingItems, async () => {
       if (toDelete.length) await db.eventShoppingItems.bulkDelete(toDelete)
       if (toPut.length) await db.eventShoppingItems.bulkPut(toPut)
