@@ -23,6 +23,7 @@ export default function App() {
   const ready = useApp((s) => s.ready)
   const init = useApp((s) => s.init)
   const refresh = useApp((s) => s.refresh)
+  const savePhotosLocally = useApp((s) => s.savePhotosLocally)
   const settings = useApp((s) => s.settings)
   const categories = useApp((s) => s.categories)
   const recipes = useApp((s) => s.recipes)
@@ -94,12 +95,17 @@ export default function App() {
       await init()
       await seedIfEmpty(DEFAULT_SETTINGS.defaultColorSet)
       await seedSampleRecipeIfEmpty()
-      if (!cancelled) await refresh()
+      if (cancelled) return
+      await refresh()
+      // Photos that still point at a website are copied into the app itself, so
+      // a recipe never loses its picture. Off the critical path: the screen is
+      // ready before the downloads are.
+      void savePhotosLocally()
     })()
     return () => {
       cancelled = true
     }
-  }, [init, refresh])
+  }, [init, refresh, savePhotosLocally])
 
   // react to OS theme changes when following the system
   useEffect(() => {

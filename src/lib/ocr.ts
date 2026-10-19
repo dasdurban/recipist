@@ -143,18 +143,23 @@ export async function remoteImageToDataUrl(url: string, proxy?: string): Promise
   const native = await nativeFetchBinary(url)
   if (native) return downscaleDataUrl(native.dataUrl, 1600)
 
-  try {
-    const target = proxy ? `${proxy}${encodeURIComponent(url)}` : url
-    const res = await fetch(target)
-    if (!res.ok) return undefined
-    const blob = await res.blob()
-    if (!blob.type.startsWith('image/')) return undefined
-    if (blob.size > 6 * 1024 * 1024) return undefined
-    const dataUrl = await blobToDataUrl(blob)
-    return downscaleDataUrl(dataUrl, 1600)
-  } catch {
-    return undefined
+  // In a plain browser the site's own CORS headers decide whether a direct
+  // fetch is allowed; when it is, that beats going through the proxy.
+  const targets = proxy ? [url, `${proxy}${encodeURIComponent(url)}`] : [url]
+  for (const target of targets) {
+    try {
+      const res = await fetch(target)
+      if (!res.ok) continue
+      const blob = await res.blob()
+      if (!blob.type.startsWith('image/')) continue
+      if (blob.size > 6 * 1024 * 1024) continue
+      const dataUrl = await blobToDataUrl(blob)
+      return downscaleDataUrl(dataUrl, 1600)
+    } catch {
+      // Cross-origin without CORS headers, or offline: try the next route.
+    }
   }
+  return undefined
 }
 
 export function blobToDataUrl(blob: Blob): Promise<string> {

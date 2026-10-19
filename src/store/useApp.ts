@@ -16,6 +16,7 @@ import type {
 import { db, DEFAULT_SETTINGS, loadSettings, saveSettings, uid } from '../db/database'
 import { pickColorForName } from '../lib/colors'
 import { combineIngredients } from '../lib/combineIngredients'
+import { remoteImageToDataUrl } from '../lib/ocr'
 import { playTimerDing } from '../lib/timerSound'
 import { broadcastTimer, type TimerSnapshot } from '../lib/timerSync'
 import { windowLabel } from '../lib/native'
@@ -84,6 +85,8 @@ interface AppState {
   saveRecipe: (recipe: Recipe) => Promise<void>
   deleteRecipe: (id: string) => Promise<void>
   toggleFavorite: (id: string) => Promise<void>
+  /** Copies every photo that still lives on a website into the app itself. */
+  savePhotosLocally: () => Promise<void>
 
   // settings
   updateSettings: (patch: Partial<Settings>) => Promise<void>
@@ -228,6 +231,13 @@ export function applyTimerSnapshot(snapshot: TimerSnapshot): void {
     settleTimer()
   }
 }
+
+/**
+ * The photo sweep in flight, so the two calls at boot (React mounts effects
+ * twice in development) share one run instead of racing each other. Cleared
+ * when it finishes, so an import later in the session can start a fresh one.
+ */
+let photoSweep: Promise<void> | null = null
 
 export const useApp = create<AppState>((set, get) => ({
   ready: false,
@@ -407,6 +417,35 @@ export const useApp = create<AppState>((set, get) => ({
     const next = { ...recipe, updatedAt: Date.now() }
     await db.recipes.put(next)
     await get().refresh()
+  },
+
+  async savePhotosLocally() {
+    if (!get().recipes.some((r) => r.photo && /^https?:/i.test(r.photo))) return
+    photoSweep ??= (async () => {
+      let saved = 0
+      for (const recipe of get().recipes) {
+        const url = recipe.photo
+        if (!url || !/^https?:/i.test(url)) continue
+        const dataUrl = await remoteImageToDataUrl(url, get().settings.importProxy)
+        if (!dataUrl) continue
+        // The recipe may have been edited or deleted while the photo downloaded.
+        if (get().recipes.find((r) => r.id === recipe.id)?.photo !== url) continue
+        await db.recipes.update(recipe.id, { photo: dataUrl })
+        set((s) => ({
+          recipes: s.recipes.map((r) => (r.id === recipe.id ? { ...r, photo: dataUrl } : r)),
+        }))
+        saved += 1
+      }
+      if (saved > 0) {
+        get().toast(
+          saved === 1 ? 'Saved 1 photo into the app.' : `Saved ${saved} photos into the app.`,
+          'success',
+        )
+      }
+    })().finally(() => {
+      photoSweep = null
+    })
+    return photoSweep
   },
 
   async deleteRecipe(id) {
@@ -823,6 +862,8 @@ export const useApp = create<AppState>((set, get) => ({
       set({ settings: { ...DEFAULT_SETTINGS, ...data.settings } })
       applyTheme(data.settings.theme)
     }
+    // A backup can carry photos that still point at websites — pull those in too.
+    void get().savePhotosLocally()
   },
 
   toast(message, tone = 'info') {

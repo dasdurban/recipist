@@ -140,7 +140,11 @@ export interface Recipe {
   categoryId: string
   title: string
   description?: string
-  /** data URL of the finished-dish / chosen photo */
+  /**
+   * The finished-dish / chosen photo, kept in the app as a data URL so it stays
+   * with the recipe offline. A photo from an imported link can briefly still be
+   * the site's own address until it is copied in.
+   */
   photo?: string
   servings?: number
   prepMinutes?: number
