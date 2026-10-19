@@ -450,24 +450,7 @@ function ShoppingColumn({ event }: { event: EventPlan }) {
         your recipes
       </p>
 
-      {sorted.length === 0 ? (
-        <p className="text-sm text-content-muted mb-3">
-          Nothing here yet — add recipes to this event, or add items by hand below.
-        </p>
-      ) : (
-        <ul className="space-y-1 mb-3">
-          {sorted.map((item) => (
-            <EventItemRow
-              key={item.id}
-              item={item}
-              onToggle={() => toggleItem(item.id)}
-              onDelete={() => deleteItem(item.id)}
-            />
-          ))}
-        </ul>
-      )}
-
-      <div className="flex items-center gap-1.5 pt-2 border-t border-line">
+      <div className="flex items-center gap-1.5 pb-3 mb-3 border-b border-line">
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -482,6 +465,23 @@ function ShoppingColumn({ event }: { event: EventPlan }) {
           <Plus size={15} />
         </button>
       </div>
+
+      {sorted.length === 0 ? (
+        <p className="text-sm text-content-muted">
+          Nothing here yet — add recipes to this event, or add items by hand above.
+        </p>
+      ) : (
+        <ul className="space-y-1">
+          {sorted.map((item) => (
+            <EventItemRow
+              key={item.id}
+              item={item}
+              onToggle={() => toggleItem(item.id)}
+              onDelete={() => deleteItem(item.id)}
+            />
+          ))}
+        </ul>
+      )}
     </section>
   )
 }
@@ -618,24 +618,7 @@ function TodoColumn({ event }: { event: EventPlan }) {
         {todos.filter((t) => !t.checked).length} of {todos.length} open
       </p>
 
-      {sorted.length === 0 ? (
-        <p className="text-sm text-content-muted mb-3">
-          Plan the prep — clean the house, chill the drinks, borrow tables…
-        </p>
-      ) : (
-        <ul className="space-y-1 mb-3">
-          {sorted.map((todo) => (
-            <TodoRow
-              key={todo.id}
-              todo={todo}
-              onToggle={() => toggleTodo(todo.id)}
-              onDelete={() => deleteTodo(todo.id)}
-            />
-          ))}
-        </ul>
-      )}
-
-      <div className="flex items-center gap-1.5 pt-2 border-t border-line">
+      <div className="flex items-center gap-1.5 pb-3 mb-3 border-b border-line">
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -650,6 +633,23 @@ function TodoColumn({ event }: { event: EventPlan }) {
           <Plus size={15} />
         </button>
       </div>
+
+      {sorted.length === 0 ? (
+        <p className="text-sm text-content-muted">
+          Plan the prep — clean the house, chill the drinks, borrow tables…
+        </p>
+      ) : (
+        <ul className="space-y-1">
+          {sorted.map((todo) => (
+            <TodoRow
+              key={todo.id}
+              todo={todo}
+              onToggle={() => toggleTodo(todo.id)}
+              onDelete={() => deleteTodo(todo.id)}
+            />
+          ))}
+        </ul>
+      )}
     </section>
   )
 }
