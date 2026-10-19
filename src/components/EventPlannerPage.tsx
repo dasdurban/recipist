@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import clsx from 'clsx'
 import {
   CalendarDays,
@@ -369,12 +370,51 @@ function statsText(s: EventStats): string {
   return parts.join(' · ')
 }
 
+/** Wraps an event tile and makes the whole thing open the event. */
+function EventTile({
+  name,
+  onSelect,
+  className,
+  children,
+}: {
+  name: string
+  onSelect: () => void
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${name}`}
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        // ignore keys aimed at a nested control (e.g. the delete button)
+        if (e.target !== e.currentTarget) return
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onSelect()
+        }
+      }}
+      className={clsx(
+        'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/60',
+        className,
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
 /** Small "delete event" icon button shared by the three layouts. */
 function DeleteEventButton({ onDelete }: { onDelete: () => void }) {
   return (
     <button
       className="btn-ghost !p-1 text-content-muted hover:text-red-600 shrink-0"
-      onClick={onDelete}
+      onClick={(e) => {
+        e.stopPropagation()
+        onDelete()
+      }}
       aria-label="Delete event"
       title="Delete event"
     >
@@ -398,7 +438,11 @@ function EventCard({
   const s = useEventStats(event)
 
   return (
-    <div className="card p-3 overflow-hidden flex flex-col gap-2">
+    <EventTile
+      name={event.name}
+      onSelect={onSelect}
+      className="card p-3 overflow-hidden flex flex-col gap-2 transition-all hover:shadow-lg hover:-translate-y-0.5"
+    >
       <div className="flex items-start justify-between gap-2">
         <span
           className="h-7 w-7 rounded-lg shrink-0 flex items-center justify-center"
@@ -423,11 +467,8 @@ function EventCard({
           ))}
         </div>
       )}
-      <p className="text-[11px] text-content-muted">{statsText(s)}</p>
-      <button className="w-full btn-soft justify-start text-sm mt-auto" onClick={onSelect}>
-        Plan event <CalendarDays size={13} />
-      </button>
-    </div>
+      <p className="text-[11px] text-content-muted mt-auto">{statsText(s)}</p>
+    </EventTile>
   )
 }
 
@@ -446,7 +487,11 @@ function EventListRow({
   const s = useEventStats(event)
 
   return (
-    <div className="card px-3 py-2.5 flex items-center gap-3">
+    <EventTile
+      name={event.name}
+      onSelect={onSelect}
+      className="card px-3 py-2.5 flex items-center gap-3 transition-colors hover:bg-surface-3"
+    >
       <span
         className="h-9 w-9 rounded-xl shrink-0 flex items-center justify-center"
         style={{ backgroundColor: `${hex}22`, color: hex }}
@@ -471,11 +516,8 @@ function EventListRow({
           ))}
         </div>
       )}
-      <button className="btn-soft shrink-0" onClick={onSelect}>
-        Plan event <CalendarDays size={13} />
-      </button>
       <DeleteEventButton onDelete={onDelete} />
-    </div>
+    </EventTile>
   )
 }
 
@@ -517,13 +559,12 @@ function EventPreviewCard({
   ]
 
   return (
-    <div className="card overflow-hidden flex flex-col">
-      <button
-        type="button"
-        onClick={onSelect}
-        aria-label={`Open ${event.name}`}
-        className="text-left p-2.5 flex-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
-      >
+    <EventTile
+      name={event.name}
+      onSelect={onSelect}
+      className="card overflow-hidden flex flex-col transition-shadow hover:shadow-lg"
+    >
+      <div className="text-left p-2.5 flex-1">
         {/* mini title bar */}
         <div
           className="rounded-lg border px-2 py-1.5 mb-2 flex items-center gap-1.5"
@@ -595,20 +636,15 @@ function EventPreviewCard({
             </div>
           ))}
         </div>
-      </button>
+      </div>
 
       <div className="flex items-center justify-between gap-2 border-t border-line px-2 py-1.5">
         <span className="text-[11px] text-content-muted truncate">
           {s.links.length} recipe{s.links.length === 1 ? '' : 's'}
         </span>
-        <div className="flex items-center gap-1 shrink-0">
-          <button className="btn-soft !py-1 !px-2 text-xs" onClick={onSelect}>
-            Plan event
-          </button>
-          <DeleteEventButton onDelete={onDelete} />
-        </div>
+        <DeleteEventButton onDelete={onDelete} />
       </div>
-    </div>
+    </EventTile>
   )
 }
 
