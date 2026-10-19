@@ -337,15 +337,15 @@ export function ShoppingListsPage() {
             </section>
           )}
 
-          {/* Combined ingredients section */}
+          {/* Everything needed section — every list and event on this page combined */}
           <section className="rounded-xl border border-line bg-surface-2 p-4">
             <h2 className="font-bold mb-3 flex items-center gap-2">
               <span className="h-4 w-1.5 rounded-full bg-brand" />
-              All needed ingredients
+              Everything needed
             </h2>
             {combinedItems.length === 0 ? (
               <p className="text-sm text-content-muted">
-                No ingredients yet — generate a list from a recipe, or add recipes to an event.
+                Nothing yet — generate a list from a recipe, or add recipes to an event.
               </p>
             ) : (
               <ul className="space-y-2">
