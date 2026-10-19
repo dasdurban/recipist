@@ -136,6 +136,12 @@
  * instead of a single viewport of it, and the light palette is forced so a
  * dark-themed app still prints as dark text on white paper.
  */
+
+/* Paper margin, so full-bleed artwork never reaches the edge of the page. */
+@page {
+  margin: 10mm;
+}
+
 @media print {
   :root,
   .dark {
@@ -172,5 +178,8 @@
 
   .print-area {
     width: 100% !important;
+    /* A guaranteed inset around the content, including full-bleed photos, for
+       engines that ignore the @page margin above. */
+    padding: 6mm 8mm !important;
   }
 }
