@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { ChevronRight, Plus, List, CalendarDays } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { ChevronRight, Heart, Plus, List, CalendarDays } from 'lucide-react'
 import clsx from 'clsx'
 import { useApp } from '../store/useApp'
 import { allRecipesColor, colorFor, favoritesColor } from '../lib/colors'
@@ -111,11 +112,19 @@ export function Sidebar() {
             />
             {favorites > 0 && (
               <NavRow
-                label="★ Favorites"
+                label="Favorites"
                 count={favorites}
                 active={activeCategoryId === FAVORITES_ID}
                 color={favoritesColor(settings)}
                 onClick={selectFavorites}
+                /* the same heart the recipe cards use to mark a favourite */
+                trailing={
+                  <Heart
+                    size={14}
+                    className="shrink-0 fill-rose-500 text-rose-500"
+                    aria-hidden
+                  />
+                }
               />
             )}
 
@@ -236,12 +245,15 @@ function NavRow({
   active,
   color,
   onClick,
+  trailing,
 }: {
   label: string
   count: number
   active: boolean
   color: string
   onClick: () => void
+  /** optional icon shown between the label and the count */
+  trailing?: ReactNode
 }) {
   return (
     <button
@@ -253,6 +265,7 @@ function NavRow({
     >
       <span className="h-7 w-7 shrink-0 rounded-lg" style={{ backgroundColor: color, opacity: 0.9 }} aria-hidden />
       <span className="flex-1 min-w-0 truncate">{label}</span>
+      {trailing}
       <span className="text-xs text-content-muted tabular-nums">{count}</span>
     </button>
   )
