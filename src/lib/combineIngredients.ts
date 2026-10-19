@@ -1,6 +1,6 @@
 import type { Recipe } from '../types'
-import { COUNT_UNITS, VOLUME_ML, WEIGHT_G } from './nutrition-data'
-import { findFood, parseIngredient, stripNoise } from './nutrition'
+import { COUNT_UNITS, FOODS, VOLUME_ML, WEIGHT_G } from './nutrition-data'
+import { normalizeName, parseIngredient, stripNoise } from './nutrition'
 
 /**
  * Combines the ingredients of several recipes into one summary, adding the
@@ -32,19 +32,36 @@ interface UnitInfo {
 }
 
 /**
- * Key used to match "the same" ingredient across recipes. Known foods match by
- * their canonical food name (so "milk" and "whole milk" combine, as do "flour"
- * and "all-purpose flour"); anything else falls back to a noise-stripped,
- * singularized name.
+ * Key used to match the "same" ingredient across recipes. Ingredients whose
+ * (noise-stripped) name exactly matches a known food or one of its aliases are
+ * keyed by that food — so "milk" and "whole milk" combine, as do "flour" and
+ * "all-purpose flour" — while anything else falls back to a normalized,
+ * singularized name. Matching is exact, so "almond flour" never merges "flour".
  */
+let FOOD_INDEX: Map<string, string> | null = null
+
+function foodIndex(): Map<string, string> {
+  if (FOOD_INDEX) return FOOD_INDEX
+  const index = new Map<string, string>()
+  for (const food of FOODS) {
+    index.set(normalizeName(food.name), food.name)
+    for (const alias of food.aliases ?? []) index.set(normalizeName(alias), food.name)
+  }
+  FOOD_INDEX = index
+  return index
+}
+
 export function ingredientKey(name: string): string {
-  const text = (name ?? '').trim()
+  // "butter, melted" / "onion, finely diced": match on the part before the comma
+  const text = (name ?? '').split(',')[0].trim()
   if (!text) return ''
-  const food = findFood(text)
-  if (food) return `food:${food.name.toLowerCase()}`
   const cleaned = stripNoise(text)
   if (!cleaned) return ''
-  return `text:${cleaned.replace(/ies$/, 'y').replace(/(es|s)$/, '')}`
+  const singular = cleaned.replace(/ies$/, 'y').replace(/(es|s)$/, '')
+  const index = foodIndex()
+  const food = index.get(cleaned) ?? (singular !== cleaned ? index.get(singular) : undefined)
+  if (food) return `food:${food.toLowerCase()}`
+  return `text:${singular || cleaned}`
 }
 
 /** Units that share a meaning but differ in spelling. */
