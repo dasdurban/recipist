@@ -54,13 +54,6 @@ export function RecipeCard({ recipe, color }: { recipe: Recipe; color: string })
             className={recipe.favorite ? 'fill-rose-500 text-rose-500' : 'text-white'}
           />
         </button>
-
-        {/* health index, bottom-right, over a soft scrim so it reads on any photo */}
-        {health && (
-          <div className="absolute bottom-1.5 right-1.5 rounded-full bg-black/45 backdrop-blur px-1 py-1">
-            <HealthScore nutrition={health} size={38} showLabel={false} />
-          </div>
-        )}
       </div>
 
       <div className="p-3">
@@ -87,6 +80,12 @@ export function RecipeCard({ recipe, color }: { recipe: Recipe; color: string })
                 }}
               />
               {Math.round(recipe.nutrition.calories / (recipe.servings || 1))} kcal
+            </span>
+          )}
+          {/* health index — sits at the card's bottom-right, opposite the time/kcal */}
+          {health && (
+            <span className="ml-auto shrink-0" title="Health score out of 100">
+              <HealthScore nutrition={health} size={26} showLabel={false} />
             </span>
           )}
         </div>
