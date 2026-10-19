@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CalendarDays,
   ChevronLeft,
+  Clock,
   ListTodo,
   Plus,
   Salad,
@@ -355,44 +356,16 @@ function EventDetail({
             automatically into the shopping list below.
           </p>
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {included.map((recipe) => {
               const link = eventRecipes.find((l) => l.recipeId === recipe.id)
-              const hex = colorByRecipe.get(recipe.id) ?? PLANNER_HEX
               return (
-                <div
+                <EventRecipeCard
                   key={recipe.id}
-                  className="group flex items-center gap-2.5 rounded-xl border border-line bg-surface-2 p-1.5 pr-2.5"
-                >
-                  <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-surface-3">
-                    {recipe.photo ? (
-                      <img
-                        src={recipe.photo}
-                        alt={recipe.title}
-                        loading="lazy"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div
-                        className="h-full w-full"
-                        style={{
-                          background: `linear-gradient(135deg, ${hex}55, ${hex}1a 70%, ${hex}0d)`,
-                        }}
-                        aria-hidden
-                      />
-                    )}
-                  </div>
-                  <span className="text-sm font-medium max-w-[14rem] truncate" title={recipe.title}>
-                    {recipe.title}
-                  </span>
-                  <button
-                    className="btn-ghost !p-1 rounded-full text-content-muted hover:text-red-600"
-                    aria-label={`Remove ${recipe.title} from event`}
-                    onClick={() => link && removeEventRecipe(link.id)}
-                  >
-                    <X size={13} />
-                  </button>
-                </div>
+                  recipe={recipe}
+                  color={colorByRecipe.get(recipe.id) ?? PLANNER_HEX}
+                  onRemove={() => link && removeEventRecipe(link.id)}
+                />
               )
             })}
           </div>
@@ -449,6 +422,58 @@ function EventDetail({
         )}
       </Modal>
     </>
+  )
+}
+
+/** A compact recipe card for the event's recipe grid — the homepage card, but
+ *  smaller (five fit side by side) and with a remove-from-event button. */
+function EventRecipeCard({
+  recipe,
+  color,
+  onRemove,
+}: {
+  recipe: Recipe
+  color: string
+  onRemove: () => void
+}) {
+  const totalMinutes = (recipe.prepMinutes ?? 0) + (recipe.cookMinutes ?? 0)
+  return (
+    <div className="card overflow-hidden">
+      <div className="relative aspect-[4/3] bg-surface-3 overflow-hidden">
+        {recipe.photo ? (
+          <img
+            src={recipe.photo}
+            alt={recipe.title}
+            loading="lazy"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div
+            className="h-full w-full"
+            style={{ background: `linear-gradient(135deg, ${color}55, ${color}1a 70%, ${color}0d)` }}
+            aria-hidden
+          />
+        )}
+        <button
+          className="absolute top-1.5 right-1.5 h-7 w-7 rounded-full bg-black/40 backdrop-blur flex items-center justify-center text-white hover:bg-red-600/80 transition-colors"
+          aria-label={`Remove ${recipe.title} from event`}
+          title="Remove from event"
+          onClick={onRemove}
+        >
+          <X size={14} />
+        </button>
+      </div>
+      <div className="p-2.5">
+        <h4 className="font-semibold text-xs leading-snug line-clamp-2" title={recipe.title}>
+          {recipe.title}
+        </h4>
+        {totalMinutes > 0 && (
+          <div className="flex items-center gap-1 mt-1.5 text-[11px] text-content-muted">
+            <Clock size={11} /> {totalMinutes} min
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
