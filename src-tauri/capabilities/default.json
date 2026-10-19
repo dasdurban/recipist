@@ -1,14 +1,19 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Tauri core, plus the native shell: open links in the default browser, and save/open backup files through the system panels.",
+  "description": "Tauri core, plus the native shell: open links in the default browser, save/open backup files through the system panels, and give the kitchen timer its own window.",
   "windows": [
-    "main"
+    "main",
+    "timer"
   ],
   "permissions": [
     "core:default",
     "core:webview:default",
     "core:window:default",
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-create",
+    "core:window:allow-set-focus",
+    "core:window:allow-unminimize",
     "dialog:allow-save",
     "dialog:allow-open",
     "fs:allow-write-text-file",

@@ -5,6 +5,7 @@ import { TomatoLogo } from './TomatoLogo'
 import { KitchenTimerIcon } from './KitchenTimerIcon'
 import { useState } from 'react'
 import { TimerPanel } from './TimerPanel'
+import { openTimerWindow } from '../lib/timerWindow'
 
 /** Top bar: nav tree toggle, back button, title/breadcrumb, settings. */
 export function Header({
@@ -39,6 +40,14 @@ export function Header({
   const shoppingList = shoppingLists.find((l) => l.id === activeShoppingListId)
 
   const [timerOpen, setTimerOpen] = useState(false)
+
+  // On the desktop the timer gets a window of its own, which can be dragged
+  // clear of the app and stays open while the recipes are used. Everywhere else
+  // (the browser and the mobile builds) it stays a panel in the page.
+  const openTimer = async () => {
+    const opened = await openTimerWindow()
+    if (!opened) setTimerOpen(true)
+  }
 
   const title = titleOverride
     ? titleOverride
@@ -86,7 +95,7 @@ export function Header({
 
         <button
           className="btn-ghost !p-2 relative"
-          onClick={() => setTimerOpen(true)}
+          onClick={openTimer}
           aria-label="Open timer"
           title="Kitchen timer"
         >

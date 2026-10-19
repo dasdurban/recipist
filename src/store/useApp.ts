@@ -17,6 +17,8 @@ import { db, DEFAULT_SETTINGS, loadSettings, saveSettings, uid } from '../db/dat
 import { pickColorForName } from '../lib/colors'
 import { combineIngredients } from '../lib/combineIngredients'
 import { playTimerDing } from '../lib/timerSound'
+import { broadcastTimer, type TimerSnapshot } from '../lib/timerSync'
+import { windowLabel } from '../lib/native'
 
 export interface Toast {
   id: string
@@ -54,6 +56,8 @@ interface AppState {
   timerRunning: boolean
   timerEndsAt: number | null // epoch ms when running (authoritative for accuracy)
   timerDone: boolean // reached zero
+  /** Window that last set the timer — only it rings, so a detached panel stays quiet. */
+  timerOwner: string
 
   init: () => Promise<void>
   refresh: () => Promise<void>
@@ -145,12 +149,83 @@ function sortLists(lists: ShoppingList[]): ShoppingList[] {
 }
 
 // Singleton countdown ticker so the timer keeps running even when the panel is
-// closed (state lives in the store; this interval only advances it).
+// closed (state lives in the store; this interval only advances it). The timer
+// can also live in its own window: both windows run this same ticker off the
+// shared `endsAt` instant and post control changes to each other.
 let timerHandle: ReturnType<typeof setInterval> | null = null
+/** True once this window has dealt with the finish of the current run. */
+let timerSettled = false
+
 function stopTicker() {
   if (timerHandle !== null) {
     clearInterval(timerHandle)
     timerHandle = null
+  }
+}
+
+/** Runs the countdown while the store says it is running. */
+function armTicker() {
+  stopTicker()
+  const st = useApp.getState()
+  if (!st.timerRunning || st.timerEndsAt === null) return
+  const ends = st.timerEndsAt
+  if (ends <= Date.now()) {
+    settleTimer()
+    return
+  }
+  timerHandle = setInterval(() => {
+    const left = Math.max(0, Math.ceil((ends - Date.now()) / 1000))
+    if (left <= 0) settleTimer()
+    else useApp.setState({ timerRemaining: left })
+  }, 500)
+}
+
+/** Reached zero: mark it done, tell the other windows, and ring if it is ours. */
+function settleTimer() {
+  if (timerSettled) return
+  timerSettled = true
+  stopTicker()
+  const st = useApp.getState()
+  useApp.setState({ timerRunning: false, timerEndsAt: null, timerRemaining: 0, timerDone: true })
+  if (st.timerOwner === windowLabel()) playTimerDing()
+  st.toast('Timer finished — time’s up!', 'error')
+  broadcastTimer()
+}
+
+/** The timer fields, as they are shared with the other windows. */
+export function timerSnapshot(): TimerSnapshot {
+  const s = useApp.getState()
+  return {
+    duration: s.timerDuration,
+    remaining: s.timerRemaining,
+    running: s.timerRunning,
+    endsAt: s.timerEndsAt,
+    done: s.timerDone,
+    owner: s.timerOwner,
+  }
+}
+
+/** Applies the timer state another window broadcast. */
+export function applyTimerSnapshot(snapshot: TimerSnapshot): void {
+  const wasRunning = useApp.getState().timerRunning
+  stopTicker()
+  useApp.setState({
+    timerDuration: snapshot.duration,
+    timerRemaining: snapshot.remaining,
+    timerRunning: snapshot.running,
+    timerEndsAt: snapshot.endsAt,
+    timerDone: snapshot.done,
+    timerOwner: snapshot.owner,
+  })
+  if (snapshot.running) {
+    // A run is under way (possibly a fresh one), so arm the countdown again.
+    timerSettled = false
+    armTicker()
+  } else if (snapshot.done && wasRunning) {
+    // A run that was counting down has finished: settle it here too. This is a
+    // no-op if this window has already dealt with it, so the alarm stays one
+    // ring rather than a duet.
+    settleTimer()
   }
 }
 
@@ -178,6 +253,7 @@ export const useApp = create<AppState>((set, get) => ({
   timerRunning: false,
   timerEndsAt: null,
   timerDone: false,
+  timerOwner: windowLabel(),
   toasts: [],
 
   async init() {
@@ -762,13 +838,16 @@ export const useApp = create<AppState>((set, get) => ({
   setTimerDuration(seconds: number) {
     const s = Math.max(0, Math.floor(seconds))
     stopTicker()
+    timerSettled = false
     set({
       timerDuration: s,
       timerRemaining: s,
       timerRunning: false,
       timerEndsAt: null,
       timerDone: s === 0,
+      timerOwner: windowLabel(),
     })
+    broadcastTimer()
   },
   startTimer() {
     const st = get()
@@ -776,51 +855,49 @@ export const useApp = create<AppState>((set, get) => ({
     const dur = st.timerDuration || st.timerRemaining || 0
     if (dur === 0 && st.timerRemaining === 0) {
       set({ timerDone: true })
+      broadcastTimer()
       return
     }
-    const now = Date.now()
     const rem = st.timerRemaining > 0 ? st.timerRemaining : dur
-    const ends = now + rem * 1000
-    stopTicker()
-    timerHandle = setInterval(() => {
-      const n = Date.now()
-      const left = Math.max(0, Math.ceil((ends - n) / 1000))
-      if (left <= 0) {
-        stopTicker()
-        set({ timerRunning: false, timerEndsAt: null, timerRemaining: 0, timerDone: true })
-        playTimerDing()
-        get().toast('Timer finished — time’s up!', 'error')
-      } else {
-        set({ timerRemaining: left })
-      }
-    }, 500)
+    timerSettled = false
     set({
       timerDuration: dur || rem,
       timerRemaining: rem,
       timerRunning: true,
-      timerEndsAt: ends,
+      timerEndsAt: Date.now() + rem * 1000,
       timerDone: false,
+      timerOwner: windowLabel(),
     })
+    armTicker()
+    broadcastTimer()
   },
   pauseTimer() {
     if (!get().timerRunning) return
-    stopTicker()
     const st = get()
-    let rem = st.timerRemaining
-    if (st.timerEndsAt !== null) {
-      rem = Math.max(0, Math.ceil((st.timerEndsAt - Date.now()) / 1000))
-    }
-    set({ timerRunning: false, timerEndsAt: null, timerRemaining: rem })
-  },
-  resetTimer() {
+    const rem =
+      st.timerEndsAt !== null
+        ? Math.max(0, Math.ceil((st.timerEndsAt - Date.now()) / 1000))
+        : st.timerRemaining
     stopTicker()
-    const dur = get().timerDuration
     set({
       timerRunning: false,
       timerEndsAt: null,
-      timerRemaining: dur,
-      timerDone: false,
+      timerRemaining: rem,
+      timerOwner: windowLabel(),
     })
+    broadcastTimer()
+  },
+  resetTimer() {
+    stopTicker()
+    timerSettled = false
+    set({
+      timerRunning: false,
+      timerEndsAt: null,
+      timerRemaining: get().timerDuration,
+      timerDone: false,
+      timerOwner: windowLabel(),
+    })
+    broadcastTimer()
   },
 
 }))

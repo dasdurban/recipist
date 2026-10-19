@@ -4,7 +4,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
 use serde::Serialize;
-use tauri::{AppHandle, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 /// Recipe sites routinely 403 non-browser user agents, so look like Chrome.
 const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 \
@@ -358,6 +358,15 @@ pub fn run() {
                 )?;
             }
             Ok(())
+        })
+        // The detached kitchen-timer window keeps the process alive, so closing
+        // the main window has to end the app itself — as it did before the timer
+        // had a window of its own.
+        .on_window_event(|window, event| {
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::CloseRequested { .. })
+            {
+                window.app_handle().exit(0);
+            }
         })
         .run(tauri::generate_context!())
         .expect("error while building tauri application");

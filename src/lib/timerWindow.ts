@@ -1,0 +1,98 @@
+/**
+ * The detached kitchen-timer window.
+ *
+ * The panel normally lives in a modal inside the app, but on the desktop it is
+ * much more useful as a window of its own: it can be dragged off the main
+ * window, stays open while the recipes are used, and keeps the timer visible
+ * when the app is behind something else. The window loads the same bundle and
+ * decides what to render from its label (see `isTimerWindow`).
+ */
+import { WebviewWindow, getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { currentMonitor } from '@tauri-apps/api/window'
+import { isTauri, TIMER_WINDOW_LABEL } from './native'
+
+const WIDTH = 360
+const HEIGHT = 620
+const MARGIN = 16
+
+/** Guards against a second click creating a duplicate window. */
+let opening = false
+
+/**
+ * Brings up the timer window, or focuses the one that is already open.
+ * Returns false when there is no desktop shell to open one in (the browser
+ * build keeps using the panel inside the page).
+ */
+export async function openTimerWindow(): Promise<boolean> {
+  if (!isTauri()) return false
+  if (opening) return true
+  opening = true
+
+  try {
+    const existing = await WebviewWindow.getByLabel(TIMER_WINDOW_LABEL)
+    if (existing) {
+      await existing.unminimize().catch(() => {})
+      await existing.setFocus()
+      return true
+    }
+
+    const position = await besideMainWindow()
+    const timer = new WebviewWindow(TIMER_WINDOW_LABEL, {
+      url: 'index.html',
+      title: 'Kitchen timer',
+      width: WIDTH,
+      height: HEIGHT,
+      minWidth: 300,
+      minHeight: 460,
+      resizable: true,
+      maximizable: false,
+      ...position,
+    })
+
+    return await new Promise<boolean>((resolve) => {
+      timer.once('tauri://created', () => resolve(true))
+      timer.once('tauri://error', () => resolve(false))
+    })
+  } catch {
+    return false
+  } finally {
+    opening = false
+  }
+}
+
+/** Puts the timer just outside the app, or centred if that cannot be worked out. */
+async function besideMainWindow(): Promise<{ x?: number; y?: number }> {
+  try {
+    const main = getCurrentWebviewWindow()
+    const [position, size, scale, monitor] = await Promise.all([
+      main.outerPosition(),
+      main.outerSize(),
+      main.scaleFactor(),
+      currentMonitor(),
+    ])
+
+    const left = position.x / scale
+    const top = position.y / scale
+    let x = left + size.width / scale + MARGIN
+    let y = top + 56
+
+    if (monitor) {
+      const areaLeft = monitor.position.x / scale
+      const areaTop = monitor.position.y / scale
+      const areaRight = areaLeft + monitor.size.width / scale
+      const areaBottom = areaTop + monitor.size.height / scale
+      // No room to the right? Sit to the left of the app instead.
+      if (x + WIDTH > areaRight - MARGIN) x = left - WIDTH - MARGIN
+      x = clamp(x, areaLeft + 8, areaRight - WIDTH - 8)
+      y = clamp(y, areaTop + 8, areaBottom - HEIGHT - 8)
+    }
+
+    return { x: Math.round(x), y: Math.round(y) }
+  } catch {
+    return {} // no position — let the shell centre it
+  }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(value, Math.max(min, max)))
+}

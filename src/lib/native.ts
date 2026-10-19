@@ -9,12 +9,35 @@
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import type { BackupFile } from '../types'
 import { backupToJson, downloadBackup, fileNameFor } from './backup'
 
 /** True when running inside the Tauri shell rather than a browser. */
 export function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+}
+
+/** Label of the detached kitchen-timer window. */
+export const TIMER_WINDOW_LABEL = 'timer'
+
+/**
+ * Which surface this window is: the main app, the detached timer, or a plain
+ * browser tab. Used to route rendering and to decide which window rings the
+ * timer (see the store's timer slice).
+ */
+export function windowLabel(): 'main' | 'timer' | 'web' {
+  if (!isTauri()) return 'web'
+  try {
+    return getCurrentWebviewWindow().label === TIMER_WINDOW_LABEL ? 'timer' : 'main'
+  } catch {
+    return 'main'
+  }
+}
+
+/** True when this window is the detached kitchen timer. */
+export function isTimerWindow(): boolean {
+  return windowLabel() === 'timer'
 }
 
 /**
