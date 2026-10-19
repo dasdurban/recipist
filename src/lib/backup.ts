@@ -101,7 +101,23 @@ export function parseBackupText(text: string): ParsedBackup {
     throw new Error('This does not look like a backup from The Recipe App.')
   }
   const categories = obj.categories as Category[]
-  const recipes = (obj.recipes as Recipe[]).map((r) => ({ ...r, tags: r.tags ?? [] }))
+  // Older backups used a single `categoryId` and a `tags` field. Normalise
+  // every recipe to the current shape: one to three category ids, no tags.
+  const recipes = (obj.recipes as unknown as Array<Record<string, unknown>>).map((r) => {
+    const ids =
+      Array.isArray(r.categoryIds) && r.categoryIds.length
+        ? (r.categoryIds as string[])
+        : typeof r.categoryId === 'string' && r.categoryId
+          ? [r.categoryId]
+          : []
+    const next: Record<string, unknown> = {
+      ...r,
+      categoryIds: ids.filter(Boolean).slice(0, 3),
+    }
+    delete next.categoryId
+    delete next.tags
+    return next as unknown as Recipe
+  })
   const lists = (obj.shoppingLists as ShoppingList[] | undefined) ?? []
   return {
     backup: {

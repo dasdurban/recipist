@@ -381,21 +381,33 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   async deleteCategory(id) {
-    const recipeIds = (await db.recipes.where('categoryId').equals(id).primaryKeys()) as string[]
-    const listIds = recipeIds.length
-      ? ((await db.shoppingLists.where('recipeId').anyOf(recipeIds).primaryKeys()) as string[])
+    // A recipe can be in several categories, so deleting one only removes that
+    // membership. Recipes left with no category at all are deleted, as before.
+    const affected = (await db.recipes.where('categoryIds').equals(id).toArray()) as Recipe[]
+    const remaining = new Map<string, string[]>()
+    const orphanedIds: string[] = []
+    for (const recipe of affected) {
+      const otherIds = recipe.categoryIds.filter((cid) => cid !== id)
+      if (otherIds.length) remaining.set(recipe.id, otherIds)
+      else orphanedIds.push(recipe.id)
+    }
+    const listIds = orphanedIds.length
+      ? ((await db.shoppingLists.where('recipeId').anyOf(orphanedIds).primaryKeys()) as string[])
       : []
     await db.transaction('rw', db.categories, db.recipes, db.shoppingLists, async () => {
-      if (recipeIds.length) {
-        await db.recipes.bulkDelete(recipeIds)
+      for (const [recipeId, categoryIds] of remaining) {
+        await db.recipes.update(recipeId, { categoryIds, updatedAt: Date.now() })
+      }
+      if (orphanedIds.length) {
+        await db.recipes.bulkDelete(orphanedIds)
         // derived shopping lists go with their recipes
-        await db.shoppingLists.where('recipeId').anyOf(recipeIds).delete()
+        await db.shoppingLists.where('recipeId').anyOf(orphanedIds).delete()
       }
       await db.categories.delete(id)
     })
     set((s) => ({
       activeCategoryId: s.activeCategoryId === id ? null : s.activeCategoryId,
-      activeRecipeId: recipeIds.includes(s.activeRecipeId ?? '') ? null : s.activeRecipeId,
+      activeRecipeId: orphanedIds.includes(s.activeRecipeId ?? '') ? null : s.activeRecipeId,
       activeShoppingListId:
         s.activeShoppingListId && listIds.includes(s.activeShoppingListId)
           ? null

@@ -50,6 +50,35 @@ export class RecipistDB extends Dexie {
       eventIngredientChecks: 'id, eventId, [eventId+key]',
       eventTodos: 'id, eventId, checked',
     })
+    // Recipes can live in up to three categories at once, and the unused tag
+    // field is gone. Existing records keep their original category as the first
+    // entry of `categoryIds`.
+    this.version(4)
+      .stores({
+        categories: 'id, name, order, createdAt',
+        recipes: 'id, *categoryIds, title, updatedAt, favorite',
+        settings: 'id',
+        shoppingLists: 'id, recipeId, createdAt, updatedAt',
+        events: 'id, name, createdAt',
+        eventRecipes: 'id, eventId, recipeId, [eventId+recipeId]',
+        eventShoppingItems: 'id, eventId, manual, checked, [eventId+key]',
+        eventIngredientChecks: 'id, eventId, [eventId+key]',
+        eventTodos: 'id, eventId, checked',
+      })
+      .upgrade((tx) =>
+        tx
+          .table('recipes')
+          .toCollection()
+          .modify((recipe: Record<string, unknown>) => {
+            const existing = Array.isArray(recipe.categoryIds)
+              ? recipe.categoryIds.filter((id): id is string => typeof id === 'string' && id !== '')
+              : []
+            const primary = typeof recipe.categoryId === 'string' ? recipe.categoryId : ''
+            recipe.categoryIds = (existing.length ? existing : primary ? [primary] : []).slice(0, 3)
+            delete recipe.categoryId
+            delete recipe.tags
+          }),
+      )
   }
 }
 

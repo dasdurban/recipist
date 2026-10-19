@@ -45,14 +45,13 @@ export function CategoryPage({
     const inCategory = favoritesOnly
       ? recipes.filter((r) => r.favorite)
       : category
-        ? recipes.filter((r) => r.categoryId === category.id)
+        ? recipes.filter((r) => r.categoryIds.includes(category.id))
         : recipes
     const q = query.trim().toLowerCase()
     const searched = q
       ? inCategory.filter(
           (r) =>
             r.title.toLowerCase().includes(q) ||
-            r.tags.some((t) => t.toLowerCase().includes(q)) ||
             r.ingredients.some((i) => i.name.toLowerCase().includes(q)),
         )
       : inCategory

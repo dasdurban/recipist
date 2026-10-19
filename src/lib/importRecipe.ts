@@ -13,7 +13,6 @@ export interface ImportedRecipe {
   yieldText?: string
   ingredients: string[]
   instructions: string[]
-  tags: string[]
   sourceUrl: string
 }
 
@@ -146,7 +145,6 @@ export function extractFromHtml(html: string, sourceUrl: string): ImportedRecipe
         yieldText: typeof yieldRaw === 'string' ? yieldRaw : undefined,
         ingredients,
         instructions,
-        tags: asArray(node.recipeCategory).map(String).concat(asArray(node.keywords).map(String)),
         sourceUrl,
       }
     } catch {
@@ -173,7 +171,6 @@ export function extractFromHtml(html: string, sourceUrl: string): ImportedRecipe
     title: title || 'Imported recipe',
     ingredients,
     instructions,
-    tags: [],
     sourceUrl,
   }
 }
@@ -306,7 +303,7 @@ export function toRecipe(imported: ImportedRecipe, categoryId: string): Recipe {
   const ingredients: Ingredient[] = imported.ingredients.map((line) => ingredientFromRaw(line))
   const recipe: Recipe = {
     id: uid('rec_'),
-    categoryId,
+    categoryIds: categoryId ? [categoryId] : [],
     title: imported.title,
     description: imported.description,
     photo: imported.photo,
@@ -317,16 +314,9 @@ export function toRecipe(imported: ImportedRecipe, categoryId: string): Recipe {
     ingredients,
     instructions: imported.instructions,
     sourceUrl: imported.sourceUrl,
-    tags: dedupe(imported.tags.filter(Boolean).map((t) => t.trim()).filter(Boolean)).slice(0, 12),
     createdAt: now,
     updatedAt: now,
   }
   recipe.nutrition = estimateNutrition(ingredients, recipe.servings)
   return recipe
-}
-
-function dedupe(items: string[]): string[] {
-  return Array.from(new Set(items.map((i) => i.toLowerCase()))).map(
-    (lower) => items.find((i) => i.toLowerCase() === lower) ?? lower,
-  )
 }

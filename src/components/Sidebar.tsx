@@ -28,7 +28,11 @@ export function Sidebar() {
 
   const counts = useMemo(() => {
     const map = new Map<string, number>()
-    for (const r of recipes) map.set(r.categoryId, (map.get(r.categoryId) ?? 0) + 1)
+    for (const r of recipes) {
+      for (const categoryId of r.categoryIds) {
+        map.set(categoryId, (map.get(categoryId) ?? 0) + 1)
+      }
+    }
     return map
   }, [recipes])
 
@@ -37,7 +41,6 @@ export function Sidebar() {
     if (!q) return []
     return recipes.filter((r) =>
       r.title.toLowerCase().includes(q) ||
-      r.tags.some((t) => t.toLowerCase().includes(q)) ||
       r.ingredients.some((i) => i.name.toLowerCase().includes(q))
     )
   }, [recipes, filter])

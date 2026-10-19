@@ -137,7 +137,12 @@ export interface EventTodo {
 
 export interface Recipe {
   id: string
-  categoryId: string
+  /**
+   * Every category this recipe belongs to, in the order the user picked them
+   * (1–3). The recipe is stored once and appears in each of these categories;
+   * the first id is its primary category (used for its accent colour).
+   */
+  categoryIds: string[]
   title: string
   description?: string
   /**
@@ -155,7 +160,6 @@ export interface Recipe {
   instructions: string[]
   notes?: string
   sourceUrl?: string
-  tags: string[]
   favorite?: boolean
   nutrition?: NutritionEstimate
   createdAt: number

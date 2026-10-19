@@ -113,7 +113,7 @@ export function CategoryDialog({
       <Confirm
         open={confirmDelete}
         title="Delete category?"
-        message={`"${category?.name}" and all of its recipes will be permanently deleted. This cannot be undone.`}
+        message={`"${category?.name}" will be removed. Recipes that are only in this category will be permanently deleted; recipes that are also in other categories will stay. This cannot be undone.`}
         confirmLabel="Delete"
         destructive
         onClose={() => setConfirmDelete(false)}

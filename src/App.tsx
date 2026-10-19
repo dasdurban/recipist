@@ -308,7 +308,7 @@ export default function App() {
           } else {
             useApp.getState().saveRecipe(recipe).then(() => {
               toast('Recipe added.', 'success')
-              if (!activeCategoryId) useApp.getState().setActiveCategory(recipe.categoryId)
+              if (!activeCategoryId) useApp.getState().setActiveCategory(recipe.categoryIds[0] ?? null)
               useApp.getState().openRecipe(recipe.id)
             })
           }

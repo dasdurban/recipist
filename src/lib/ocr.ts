@@ -96,7 +96,6 @@ export function parseOcrText(text: string): ImportedRecipe {
     title,
     ingredients,
     instructions,
-    tags: [],
     sourceUrl: '',
   }
 }

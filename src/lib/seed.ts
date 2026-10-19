@@ -68,7 +68,7 @@ export function sampleRecipe(categoryId: string): Recipe {
   const ingredients = raw.map((line) => ingredientFromRaw(line))
   const recipe: Recipe = {
     id: 'rec_seed_pancakes',
-    categoryId,
+    categoryIds: categoryId ? [categoryId] : [],
     title: 'Everyday Pancakes',
     description: 'Fluffy, quick pancakes — a good place to start and easy to tweak.',
     servings: 4,
@@ -82,7 +82,6 @@ export function sampleRecipe(categoryId: string): Recipe {
       'Heat a lightly oiled pan over medium heat and pour 1/4 cup of batter per pancake.',
       'Cook until bubbles form, flip, and cook until golden. Serve warm.',
     ],
-    tags: ['breakfast', 'quick'],
     createdAt: now,
     updatedAt: now,
   }

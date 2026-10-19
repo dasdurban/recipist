@@ -35,7 +35,7 @@ export function RecipeView({
   const [servings, setServings] = useState(recipe.servings ?? 1)
   const [checked, setChecked] = useState<Set<string>>(new Set())
 
-  const category = categories.find((c) => c.id === recipe.categoryId)
+  const category = categories.find((c) => c.id === recipe.categoryIds[0])
   const hex = category ? colorFor(category.colorName, category.colorSet) : allRecipesColor(settings)
   const baseServings = recipe.servings && recipe.servings > 0 ? recipe.servings : 1
   const factor = servings / baseServings
@@ -130,13 +130,22 @@ export function RecipeView({
             )}
           </div>
 
-          {recipe.tags.length > 0 && (
+          {recipe.categoryIds.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-3">
-              {recipe.tags.map((tag) => (
-                <span key={tag} className="chip" style={{ backgroundColor: `${hex}22`, color: hex }}>
-                  #{tag}
-                </span>
-              ))}
+              {recipe.categoryIds.map((categoryId) => {
+                const member = categories.find((c) => c.id === categoryId)
+                if (!member) return null
+                const memberHex = colorFor(member.colorName, member.colorSet)
+                return (
+                  <span
+                    key={categoryId}
+                    className="chip"
+                    style={{ backgroundColor: `${memberHex}22`, color: memberHex }}
+                  >
+                    {member.name}
+                  </span>
+                )
+              })}
             </div>
           )}
 

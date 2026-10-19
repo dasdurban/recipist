@@ -700,7 +700,7 @@ function EventDetail({
   const colorByRecipe = useMemo(() => {
     const map = new Map<string, string>()
     for (const r of recipes) {
-      const category = categories.find((c) => c.id === r.categoryId)
+      const category = categories.find((c) => c.id === r.categoryIds[0])
       map.set(
         r.id,
         category ? colorFor(category.colorName, category.colorSet) : allRecipesColor(settings),
