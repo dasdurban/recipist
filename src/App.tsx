@@ -149,9 +149,9 @@ export default function App() {
     return () => window.removeEventListener('recipist:shopping-lists', handler)
   }, [])
 
-  // navigate to the event planner view
+  // navigate to the event planner view; an optional eventId opens that event
   useEffect(() => {
-    const handler = () => {
+    const handler = (e: Event) => {
       setEditing(null)
       setImportOpen(false)
       setCategoryDialog({ open: false, category: null })
@@ -159,10 +159,11 @@ export default function App() {
       setSettingsOpen(false)
       setShoppingListsOpen(false)
       setEventPlannerOpen(true)
-      useApp.getState().setActiveEvent(null)
+      const eventId = (e as CustomEvent<{ eventId?: string }>).detail?.eventId ?? null
+      useApp.getState().setActiveEvent(eventId)
     }
-    window.addEventListener('recipist:event-planner', handler)
-    return () => window.removeEventListener('recipist:event-planner', handler)
+    window.addEventListener('recipist:event-planner', handler as EventListener)
+    return () => window.removeEventListener('recipist:event-planner', handler as EventListener)
   }, [])
 
   // open a specific shopping list from the lists page
