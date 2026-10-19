@@ -160,8 +160,11 @@ export interface Recipe {
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
+/** How a list of things is laid out — shared by the Event planner and Shopping lists pages. */
+export type ViewMode = 'cards' | 'list' | 'preview'
+
 /** Layout of the events list on the Event planner page. */
-export type PlannerView = 'cards' | 'list' | 'preview'
+export type PlannerView = ViewMode
 
 export type SyncProvider =
   | 'none'
@@ -202,6 +205,8 @@ export interface Settings {
   plannerColorSet: ColorSet
   /** how the events are laid out on the Event planner page */
   plannerView: PlannerView
+  /** how the shopping lists are laid out on the Shopping lists page */
+  shoppingView: ViewMode
   /** show the left nav as a drawer on small screens; on desktop it is docked */
   sidebarCollapsed: boolean
   /** CORS proxy used when importing recipes from the web */

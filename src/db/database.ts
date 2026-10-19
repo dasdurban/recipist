@@ -66,6 +66,7 @@ export const DEFAULT_SETTINGS: Settings = {
   plannerColorName: 'purple',
   plannerColorSet: 'vivid',
   plannerView: 'cards',
+  shoppingView: 'cards',
   sidebarCollapsed: false,
   importProxy: 'https://api.allorigins.win/raw?url=',
   syncProvider: 'none',
