@@ -160,6 +160,9 @@ export interface Recipe {
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
+/** Layout of the events list on the Event planner page. */
+export type PlannerView = 'cards' | 'list' | 'preview'
+
 export type SyncProvider =
   | 'none'
   | 'webdav'
@@ -194,6 +197,11 @@ export interface Settings {
   /** color of the built-in "Favorites" view (not a real category) */
   favoritesColorName: ColorName
   favoritesColorSet: ColorSet
+  /** color of the Event planner title box */
+  plannerColorName: ColorName
+  plannerColorSet: ColorSet
+  /** how the events are laid out on the Event planner page */
+  plannerView: PlannerView
   /** show the left nav as a drawer on small screens; on desktop it is docked */
   sidebarCollapsed: boolean
   /** CORS proxy used when importing recipes from the web */

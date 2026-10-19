@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import clsx from 'clsx'
 import {
   CalendarDays,
   ChevronLeft,
   Clock,
+  LayoutGrid,
+  List,
   ListTodo,
+  PanelsTopLeft,
+  Pencil,
   Plus,
   Salad,
   ShoppingCart,
@@ -11,13 +16,25 @@ import {
   X,
 } from 'lucide-react'
 import { useApp } from '../store/useApp'
+import { ColorPicker } from './ui/ColorPicker'
 import { Modal } from './ui/Modal'
 import { parseIngredient } from '../lib/nutrition'
 import { combineIngredients } from '../lib/combineIngredients'
-import { allRecipesColor, colorFor } from '../lib/colors'
-import type { EventPlan, EventShoppingItem, EventTodo, Recipe } from '../types'
+import { allRecipesColor, colorFor, prefersLightText } from '../lib/colors'
+import type {
+  EventPlan,
+  EventShoppingItem,
+  EventTodo,
+  PlannerView,
+  Recipe,
+} from '../types'
 
-const PLANNER_HEX = '#7c3aed'
+/** The three layouts offered in the "Your events" section. */
+const PLANNER_VIEWS: Array<{ id: PlannerView; label: string; icon: typeof LayoutGrid }> = [
+  { id: 'cards', label: 'Card view', icon: LayoutGrid },
+  { id: 'list', label: 'List view', icon: List },
+  { id: 'preview', label: 'Preview view', icon: PanelsTopLeft },
+]
 
 /** Ingredient label: "2 cups flour" or the raw text. */
 function itemLabel(item: { name: string; quantity?: number; unit?: string; raw?: string }): string {
@@ -49,12 +66,19 @@ export function EventPlannerPage() {
   const setActiveEvent = useApp((s) => s.setActiveEvent)
   const createEvent = useApp((s) => s.createEvent)
   const deleteEvent = useApp((s) => s.deleteEvent)
+  const settings = useApp((s) => s.settings)
+  const updateSettings = useApp((s) => s.updateSettings)
   const toast = useApp((s) => s.toast)
 
   const [createOpen, setCreateOpen] = useState(false)
+  const [colorOpen, setColorOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDate, setNewDate] = useState('')
   const nameInput = useRef<HTMLInputElement>(null)
+
+  /** Title-box colour — user-selectable, like the category / All recipes views. */
+  const hex = colorFor(settings.plannerColorName, settings.plannerColorSet)
+  const view = settings.plannerView
 
   useEffect(() => {
     if (createOpen) {
@@ -89,12 +113,12 @@ export function EventPlannerPage() {
       {/* Title box */}
       <div
         className="rounded-2xl p-5 mb-5 border"
-        style={{ backgroundColor: `${PLANNER_HEX}14`, borderColor: `${PLANNER_HEX}33` }}
+        style={{ backgroundColor: `${hex}14`, borderColor: `${hex}33` }}
       >
         <div className="flex items-center gap-3">
           <span
             className="h-12 w-12 rounded-2xl shrink-0 flex items-center justify-center text-white"
-            style={{ backgroundColor: PLANNER_HEX }}
+            style={{ backgroundColor: hex }}
             aria-hidden
           >
             <CalendarDays size={24} />
@@ -107,10 +131,24 @@ export function EventPlannerPage() {
             </p>
           </div>
           <button
+            type="button"
+            onClick={() => setColorOpen(true)}
+            title="Change the Event planner color"
+            aria-label="Change the Event planner color"
+            className="h-9 w-9 rounded-xl shrink-0 flex items-center justify-center transition-transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-content ring-offset-2 ring-offset-surface"
+            style={{ backgroundColor: hex }}
+          >
+            <Pencil
+              size={14}
+              color={prefersLightText(hex) ? '#ffffff' : '#111827'}
+              className="opacity-70"
+            />
+          </button>
+          <button
             className="btn bg-white text-black border border-black hover:bg-surface-3 shrink-0"
             onClick={() => setCreateOpen(true)}
           >
-            <Plus size={16} /> New event
+            <Plus size={16} /> New
           </button>
         </div>
       </div>
@@ -121,10 +159,42 @@ export function EventPlannerPage() {
         <>
           {/* Events section */}
           <section className="mb-6">
-            <h3 className="font-bold mb-3 flex items-center gap-2">
-              <span className="h-4 w-1.5 rounded-full" style={{ backgroundColor: PLANNER_HEX }} />
-              Your events
-            </h3>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h3 className="font-bold flex items-center gap-2">
+                <span className="h-4 w-1.5 rounded-full" style={{ backgroundColor: hex }} />
+                Your events
+              </h3>
+              {sorted.length > 0 && (
+                <div
+                  className="flex items-center gap-0.5 rounded-lg border border-line p-0.5 shrink-0"
+                  role="group"
+                  aria-label="Event view"
+                >
+                  {PLANNER_VIEWS.map((v) => {
+                    const Icon = v.icon
+                    const selected = view === v.id
+                    return (
+                      <button
+                        key={v.id}
+                        type="button"
+                        title={v.label}
+                        aria-label={v.label}
+                        aria-pressed={selected}
+                        onClick={() => updateSettings({ plannerView: v.id })}
+                        className={clsx(
+                          'h-7 w-7 rounded-md flex items-center justify-center transition-colors',
+                          selected
+                            ? 'bg-surface-3 text-content'
+                            : 'text-content-muted hover:text-content',
+                        )}
+                      >
+                        <Icon size={15} />
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
             {sorted.length === 0 ? (
               <div className="text-center py-14 rounded-2xl border border-dashed border-line p-4">
                 <CalendarDays size={36} className="mx-auto mb-3 text-content-muted" />
@@ -138,16 +208,77 @@ export function EventPlannerPage() {
                   </button>
                 </div>
               </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            ) : view === 'list' ? (
+              /* One full-width row per event. */
+              <div className="flex flex-col gap-2">
                 {sorted.map((ev) => (
-                  <EventCard key={ev.id} event={ev} onSelect={() => setActiveEvent(ev.id)} onDelete={() => handleDelete(ev)} />
+                  <EventListRow
+                    key={ev.id}
+                    event={ev}
+                    hex={hex}
+                    onSelect={() => setActiveEvent(ev.id)}
+                    onDelete={() => handleDelete(ev)}
+                  />
+                ))}
+              </div>
+            ) : view === 'preview' ? (
+              /* Miniature of the event's own page — fills the width, so two
+                 previews sit at 50% each, three at 33%, and so on. */
+              <div
+                className="grid gap-3"
+                style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(12rem, 1fr))' }}
+              >
+                {sorted.map((ev) => (
+                  <EventPreviewCard
+                    key={ev.id}
+                    event={ev}
+                    hex={hex}
+                    onSelect={() => setActiveEvent(ev.id)}
+                    onDelete={() => handleDelete(ev)}
+                  />
+                ))}
+              </div>
+            ) : (
+              /* Cards stretch to fill the row: 2 events → 50% each, 3 → 33%. */
+              <div
+                className="grid gap-3"
+                style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(11rem, 1fr))' }}
+              >
+                {sorted.map((ev) => (
+                  <EventCard
+                    key={ev.id}
+                    event={ev}
+                    hex={hex}
+                    onSelect={() => setActiveEvent(ev.id)}
+                    onDelete={() => handleDelete(ev)}
+                  />
                 ))}
               </div>
             )}
           </section>
         </>
       )}
+
+      {/* Event planner colour picker */}
+      <Modal
+        open={colorOpen}
+        onClose={() => setColorOpen(false)}
+        title="Event planner color"
+        size="sm"
+        footer={
+          <button className="btn-primary" onClick={() => setColorOpen(false)}>
+            Done
+          </button>
+        }
+      >
+        <ColorPicker
+          colorSet={settings.plannerColorSet}
+          colorName={settings.plannerColorName}
+          onChange={(next) =>
+            updateSettings({ plannerColorName: next.colorName, plannerColorSet: next.colorSet })
+          }
+        />
+      </Modal>
 
       {/* New event modal */}
       <Modal
@@ -183,39 +314,300 @@ export function EventPlannerPage() {
   )
 }
 
+/** Everything the event tiles need: linked recipes (with photos), shopping
+ *  items and to-dos. Memoised, so it is safe to call per tile. */
+function useEventStats(event: EventPlan) {
+  const recipes = useApp((s) => s.recipes)
+  const allEventRecipes = useApp((s) => s.eventRecipes)
+  const allItems = useApp((s) => s.eventShoppingItems)
+  const allTodos = useApp((s) => s.eventTodos)
+
+  const links = useMemo(
+    () => allEventRecipes.filter((l) => l.eventId === event.id),
+    [allEventRecipes, event.id],
+  )
+  const recipesById = useMemo(() => {
+    const map = new Map<string, Recipe>()
+    for (const r of recipes) map.set(r.id, r)
+    return map
+  }, [recipes])
+  const included = useMemo(
+    () =>
+      links
+        .map((l) => recipesById.get(l.recipeId))
+        .filter((r): r is Recipe => Boolean(r)),
+    [links, recipesById],
+  )
+  const photos = useMemo(
+    () => included.map((r) => r.photo).filter((p): p is string => Boolean(p)),
+    [included],
+  )
+  const items = useMemo(() => allItems.filter((i) => i.eventId === event.id), [allItems, event.id])
+  const todos = useMemo(() => allTodos.filter((t) => t.eventId === event.id), [allTodos, event.id])
+
+  return {
+    links,
+    included,
+    photos,
+    items,
+    todos,
+    openTodos: todos.filter((t) => !t.checked).length,
+    dateLabel: fmtDate(event.date),
+  }
+}
+
+type EventStats = ReturnType<typeof useEventStats>
+
+/** "Thu, Nov 26 · 3 recipes · 12 items · 2 to-dos" */
+function statsText(s: EventStats): string {
+  const parts = [
+    s.dateLabel ?? 'No date',
+    `${s.links.length} recipe${s.links.length === 1 ? '' : 's'}`,
+    `${s.items.length} item${s.items.length === 1 ? '' : 's'}`,
+  ]
+  if (s.openTodos > 0) parts.push(`${s.openTodos} to-do${s.openTodos === 1 ? '' : 's'}`)
+  return parts.join(' · ')
+}
+
+/** Small "delete event" icon button shared by the three layouts. */
+function DeleteEventButton({ onDelete }: { onDelete: () => void }) {
+  return (
+    <button
+      className="btn-ghost !p-1 text-content-muted hover:text-red-600 shrink-0"
+      onClick={onDelete}
+      aria-label="Delete event"
+      title="Delete event"
+    >
+      <Trash2 size={14} />
+    </button>
+  )
+}
+
+/** Card view — a compact summary tile. */
 function EventCard({
   event,
+  hex,
   onSelect,
   onDelete,
 }: {
   event: EventPlan
+  hex: string
   onSelect: () => void
   onDelete: () => void
 }) {
-  const allTodos = useApp((s) => s.eventTodos)
-  const todos = useMemo(() => allTodos.filter((t) => t.eventId === event.id), [allTodos, event.id])
-  const openTodos = todos.filter((t) => !t.checked).length
-  const dateLabel = fmtDate(event.date)
+  const s = useEventStats(event)
 
   return (
-    <div className="card p-3 overflow-hidden">
+    <div className="card p-3 overflow-hidden flex flex-col gap-2">
       <div className="flex items-start justify-between gap-2">
-        <h4 className="font-semibold text-sm truncate flex-1">{event.name}</h4>
-        <button
-          className="btn-ghost !p-1 text-content-muted hover:text-red-600"
-          onClick={onDelete}
-          aria-label="Delete event"
+        <span
+          className="h-7 w-7 rounded-lg shrink-0 flex items-center justify-center"
+          style={{ backgroundColor: `${hex}22`, color: hex }}
+          aria-hidden
         >
-          <Trash2 size={14} />
-        </button>
+          <CalendarDays size={15} />
+        </span>
+        <h4 className="font-semibold text-sm truncate flex-1">{event.name}</h4>
+        <DeleteEventButton onDelete={onDelete} />
       </div>
-      <div className="mt-1 mb-2 text-[11px] text-content-muted">
-        {dateLabel ?? 'No date'}
-        {openTodos > 0 ? ` · ${openTodos} to-do${openTodos === 1 ? '' : 's'}` : ''}
-      </div>
-      <button className="w-full btn-soft justify-start text-sm" onClick={onSelect}>
+      {s.photos.length > 0 && (
+        <div className="flex gap-1.5 overflow-hidden">
+          {s.photos.slice(0, 5).map((photo, i) => (
+            <img
+              key={i}
+              src={photo}
+              alt=""
+              loading="lazy"
+              className="h-12 w-12 rounded-lg object-cover shrink-0 bg-surface-3"
+            />
+          ))}
+        </div>
+      )}
+      <p className="text-[11px] text-content-muted">{statsText(s)}</p>
+      <button className="w-full btn-soft justify-start text-sm mt-auto" onClick={onSelect}>
         Plan event <CalendarDays size={13} />
       </button>
+    </div>
+  )
+}
+
+/** List view — one full-width row per event. */
+function EventListRow({
+  event,
+  hex,
+  onSelect,
+  onDelete,
+}: {
+  event: EventPlan
+  hex: string
+  onSelect: () => void
+  onDelete: () => void
+}) {
+  const s = useEventStats(event)
+
+  return (
+    <div className="card px-3 py-2.5 flex items-center gap-3">
+      <span
+        className="h-9 w-9 rounded-xl shrink-0 flex items-center justify-center"
+        style={{ backgroundColor: `${hex}22`, color: hex }}
+        aria-hidden
+      >
+        <CalendarDays size={17} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="font-semibold text-sm truncate">{event.name}</div>
+        <div className="text-[11px] text-content-muted truncate">{statsText(s)}</div>
+      </div>
+      {s.photos.length > 0 && (
+        <div className="hidden sm:flex -space-x-2 shrink-0">
+          {s.photos.slice(0, 4).map((photo, i) => (
+            <img
+              key={i}
+              src={photo}
+              alt=""
+              loading="lazy"
+              className="h-8 w-8 rounded-full object-cover border-2 border-surface bg-surface-3"
+            />
+          ))}
+        </div>
+      )}
+      <button className="btn-soft shrink-0" onClick={onSelect}>
+        Plan event <CalendarDays size={13} />
+      </button>
+      <DeleteEventButton onDelete={onDelete} />
+    </div>
+  )
+}
+
+/** Preview view — a miniature of the event's own page: title bar, the recipe
+ *  photos and the three columns with their real (truncated) contents. */
+function EventPreviewCard({
+  event,
+  hex,
+  onSelect,
+  onDelete,
+}: {
+  event: EventPlan
+  hex: string
+  onSelect: () => void
+  onDelete: () => void
+}) {
+  const s = useEventStats(event)
+  const combined = useMemo(() => combineIngredients(s.included), [s.included])
+
+  const columns = [
+    {
+      key: 'shopping',
+      title: 'Shopping',
+      count: s.items.length,
+      rows: s.items.map((i) => i.raw?.trim() || itemLabel(i)).slice(0, 4),
+    },
+    {
+      key: 'ingredients',
+      title: 'Ingredients',
+      count: combined.length,
+      rows: combined.map((c) => c.label).slice(0, 4),
+    },
+    {
+      key: 'todos',
+      title: 'To-dos',
+      count: s.todos.length,
+      rows: s.todos.map((t) => t.text).slice(0, 4),
+    },
+  ]
+
+  return (
+    <div className="card overflow-hidden flex flex-col">
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-label={`Open ${event.name}`}
+        className="text-left p-2.5 flex-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
+      >
+        {/* mini title bar */}
+        <div
+          className="rounded-lg border px-2 py-1.5 mb-2 flex items-center gap-1.5"
+          style={{ backgroundColor: `${hex}14`, borderColor: `${hex}33` }}
+        >
+          <span
+            className="h-5 w-5 rounded-md shrink-0 flex items-center justify-center text-white"
+            style={{ backgroundColor: hex }}
+            aria-hidden
+          >
+            <CalendarDays size={12} />
+          </span>
+          <span className="text-[11px] font-semibold truncate">{event.name}</span>
+          <span className="ml-auto text-[9px] text-content-muted shrink-0">
+            {s.dateLabel ?? 'No date'}
+          </span>
+        </div>
+
+        {/* mini recipe photos */}
+        <div className="flex gap-1 mb-2 overflow-hidden">
+          {s.photos.length === 0 ? (
+            <span
+              className="h-8 w-8 rounded-md shrink-0"
+              style={{ background: `linear-gradient(135deg, ${hex}55, ${hex}0d)` }}
+              aria-hidden
+            />
+          ) : (
+            s.photos.slice(0, 6).map((photo, i) => (
+              <img
+                key={i}
+                src={photo}
+                alt=""
+                loading="lazy"
+                className="h-8 w-8 rounded-md object-cover shrink-0 bg-surface-3"
+              />
+            ))
+          )}
+        </div>
+
+        {/* mini three columns */}
+        <div className="grid grid-cols-3 gap-1.5">
+          {columns.map((col) => (
+            <div key={col.key} className="rounded-md border border-line bg-surface-2 p-1.5 min-w-0">
+              <div className="text-[8px] font-bold uppercase tracking-wide text-content-muted mb-1 truncate">
+                {col.title}
+              </div>
+              {col.rows.length === 0 ? (
+                <div className="text-[8px] text-content-muted opacity-60">empty</div>
+              ) : (
+                <ul className="space-y-0.5">
+                  {col.rows.map((row, i) => (
+                    <li key={i} className="flex items-start gap-1 min-w-0">
+                      <span
+                        className="mt-[2px] h-1.5 w-1.5 rounded-[2px] border border-line shrink-0"
+                        aria-hidden
+                      />
+                      <span className="text-[8px] leading-tight text-content-muted truncate">
+                        {row}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {col.count > col.rows.length && (
+                <div className="text-[8px] text-content-muted opacity-70 mt-0.5">
+                  +{col.count - col.rows.length} more
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </button>
+
+      <div className="flex items-center justify-between gap-2 border-t border-line px-2 py-1.5">
+        <span className="text-[11px] text-content-muted truncate">
+          {s.links.length} recipe{s.links.length === 1 ? '' : 's'}
+        </span>
+        <div className="flex items-center gap-1 shrink-0">
+          <button className="btn-soft !py-1 !px-2 text-xs" onClick={onSelect}>
+            Plan event
+          </button>
+          <DeleteEventButton onDelete={onDelete} />
+        </div>
+      </div>
     </div>
   )
 }
@@ -264,6 +656,9 @@ function EventDetail({
         .filter((r): r is Recipe => Boolean(r)),
     [eventRecipes, recipesById],
   )
+
+  /** The planner's accent colour follows the title-box colour picker. */
+  const plannerHex = colorFor(settings.plannerColorName, settings.plannerColorSet)
 
   /** Category colour per recipe — the placeholder tint when a recipe has no photo. */
   const colorByRecipe = useMemo(() => {
@@ -343,7 +738,7 @@ function EventDetail({
       <section className="mb-5">
         <div className="flex items-center justify-between gap-3 mb-3">
           <h3 className="font-bold flex items-center gap-2">
-            <span className="h-4 w-1.5 rounded-full" style={{ backgroundColor: PLANNER_HEX }} />
+            <span className="h-4 w-1.5 rounded-full" style={{ backgroundColor: plannerHex }} />
             Event recipes
           </h3>
           <button className="btn-soft" onClick={() => setAddRecipesOpen(true)}>
@@ -363,7 +758,7 @@ function EventDetail({
                 <EventRecipeCard
                   key={recipe.id}
                   recipe={recipe}
-                  color={colorByRecipe.get(recipe.id) ?? PLANNER_HEX}
+                  color={colorByRecipe.get(recipe.id) ?? plannerHex}
                   onRemove={() => link && removeEventRecipe(link.id)}
                 />
               )
