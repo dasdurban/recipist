@@ -219,10 +219,10 @@ export default function App() {
   }
 
   return (
-    <div className="h-full flex bg-surface">
+    <div className="h-full flex bg-surface print-shell">
       <Sidebar />
 
-      <div className="flex-1 min-w-0 flex flex-col h-full">
+      <div className="flex-1 min-w-0 flex flex-col h-full print-column">
         <Header
           canGoBack={canGoBack}
           onBack={goBack}
@@ -237,7 +237,7 @@ export default function App() {
           }
         />
 
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto print-area">
           {shoppingListsOpen ? activeShoppingListId ? (
             <ShoppingListView
               list={useApp.getState().shoppingLists.find((l) => l.id === activeShoppingListId)!}

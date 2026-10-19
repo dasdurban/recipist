@@ -220,14 +220,14 @@ export function Sidebar() {
   return (
     <>
       {/* docked pane (tablet / desktop) */}
-      <aside className="hidden md:flex md:w-64 shrink-0 border-r border-line bg-surface-2 flex-col">
+      <aside className="hidden md:flex md:w-64 shrink-0 border-r border-line bg-surface-2 flex-col print-hidden">
         {brand}
         {nav}
       </aside>
 
       {/* drawer (phone) */}
       {sidebarOpen && (
-        <div className="md:hidden fixed inset-0 z-40">
+        <div className="md:hidden fixed inset-0 z-40 print-hidden">
           <div className="absolute inset-0 bg-black/50 animate-fade-in" onClick={() => toggleSidebar(false)} />
           <div className="absolute inset-y-0 left-0 w-[17rem] max-w-[82vw] bg-surface-2 border-r border-line flex flex-col animate-slide-in safe-top safe-bottom">
             {brand}

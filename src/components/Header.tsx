@@ -62,7 +62,7 @@ export function Header({
             : 'All recipes'
 
   return (
-    <header className="safe-top safe-x sticky top-0 z-30 bg-surface/85 backdrop-blur border-b border-line shrink-0">
+    <header className="safe-top safe-x sticky top-0 z-30 bg-surface/85 backdrop-blur border-b border-line shrink-0 print-hidden">
       <div className="h-14 flex items-center gap-1 px-2 sm:px-3">
         <button
           className="btn-ghost !p-2 md:hidden"

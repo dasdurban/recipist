@@ -129,3 +129,48 @@
     font-size: 16px;
   }
 }
+
+/*
+ * Printing only captures the content pane. The top bar and the navigation pane
+ * are removed, the inner scroll container is unclipped so the whole page prints
+ * instead of a single viewport of it, and the light palette is forced so a
+ * dark-themed app still prints as dark text on white paper.
+ */
+@media print {
+  :root,
+  .dark {
+    --surface: 255 255 255;
+    --surface-2: 255 255 255;
+    --surface-3: 248 250 252;
+    --content: 15 23 42;
+    --content-muted: 71 85 105;
+    --line: 203 213 225;
+  }
+
+  html,
+  body,
+  #root {
+    height: auto !important;
+    background: #fff !important;
+  }
+
+  .print-hidden {
+    display: none !important;
+  }
+
+  /* the flex shell around the content pane must not clip the printout */
+  .print-shell,
+  .print-column,
+  .print-area {
+    display: block !important;
+    flex: none !important;
+    height: auto !important;
+    max-height: none !important;
+    max-width: none !important;
+    overflow: visible !important;
+  }
+
+  .print-area {
+    width: 100% !important;
+  }
+}
