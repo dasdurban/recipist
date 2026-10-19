@@ -63,6 +63,26 @@ interface TileEntry {
   onDelete?: () => void
 }
 
+/** One underlying row behind a combined ingredient — what a tick has to update. */
+interface CombinedRef {
+  kind: 'list' | 'event'
+  /** which list the row belongs to (real shopping lists only) */
+  listId?: string
+  itemId: string
+  checked: boolean
+}
+
+/** One ingredient of \"Everything needed\", summed across every list and event. */
+interface CombinedItem {
+  name: string
+  quantity?: number
+  unit?: string
+  /** list / event names that need it */
+  sources: string[]
+  /** the rows it is made of, so it can be ticked off from here */
+  refs: CombinedRef[]
+}
+
 export function ShoppingListsPage() {
   const lists = useApp((s) => s.shoppingLists)
   const recipes = useApp((s) => s.recipes)
@@ -72,6 +92,8 @@ export function ShoppingListsPage() {
   const updateSettings = useApp((s) => s.updateSettings)
   const createList = useApp((s) => s.createShoppingList)
   const deleteList = useApp((s) => s.deleteShoppingList)
+  const setListItemsChecked = useApp((s) => s.setShoppingListItemsChecked)
+  const setEventItemsChecked = useApp((s) => s.setEventShoppingItemsChecked)
   const toast = useApp((s) => s.toast)
 
   const [createOpen, setCreateOpen] = useState(false)
@@ -156,15 +178,17 @@ export function ShoppingListsPage() {
   /**
    * Every needed ingredient across the page: the real shopping lists and each
    * event's list, summed when the unit matches. Each entry remembers which
-   * lists / events need it.
+   * lists / events need it, and the exact rows behind it so it can be ticked
+   * off from here.
    */
-  const combinedItems = useMemo(() => {
-    const map = new Map<
-      string,
-      { name: string; quantity?: number; unit?: string; sources: string[] }
-    >()
+  const combinedItems = useMemo<CombinedItem[]>(() => {
+    const map = new Map<string, CombinedItem>()
 
-    const add = (source: string, item: { name: string; quantity?: number; unit?: string }) => {
+    const add = (
+      source: string,
+      item: { name: string; quantity?: number; unit?: string },
+      ref: CombinedRef,
+    ) => {
       const key = item.name.toLowerCase()
       // "" and undefined both mean "no unit" — treat them as the same so that
       // a recipe ingredient and a hand-typed item still add up
@@ -182,25 +206,63 @@ export function ShoppingListsPage() {
           existing.unit = unit
         }
         if (!existing.sources.includes(source)) existing.sources.push(source)
+        existing.refs.push(ref)
       } else {
         map.set(key, {
           name: item.name,
           quantity: item.quantity,
           unit,
           sources: [source],
+          refs: [ref],
         })
       }
     }
 
     for (const list of lists) {
-      for (const item of list.items) add(list.name, item)
+      for (const item of list.items) {
+        add(list.name, item, {
+          kind: 'list',
+          listId: list.id,
+          itemId: item.id,
+          checked: item.checked,
+        })
+      }
     }
     for (const ev of events) {
-      for (const item of eventItemsByEvent.get(ev.id) ?? []) add(ev.name, item)
+      for (const item of eventItemsByEvent.get(ev.id) ?? []) {
+        add(ev.name, item, { kind: 'event', itemId: item.id, checked: item.checked })
+      }
     }
 
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
   }, [lists, events, eventItemsByEvent])
+
+  /**
+   * Ticks a combined ingredient off everywhere it is needed (or back on).
+   * Lists are written once per list, so several items can change in one go.
+   */
+  async function applyChecked(refs: CombinedRef[], checked: boolean) {
+    const byList = new Map<string, string[]>()
+    const eventItemIds: string[] = []
+    for (const ref of refs) {
+      if (ref.checked === checked) continue
+      if (ref.kind === 'list' && ref.listId) {
+        const ids = byList.get(ref.listId) ?? []
+        ids.push(ref.itemId)
+        byList.set(ref.listId, ids)
+      } else {
+        eventItemIds.push(ref.itemId)
+      }
+    }
+    await Promise.all([
+      ...[...byList].map(([listId, itemIds]) => setListItemsChecked(listId, itemIds, checked)),
+      setEventItemsChecked(eventItemIds, checked),
+    ])
+  }
+
+  /** A combined row counts as bought once every underlying row is ticked. */
+  const isCombinedDone = (item: CombinedItem) => item.refs.every((r) => r.checked)
+  const combinedDone = combinedItems.filter(isCombinedDone).length
 
   async function handleCreate() {
     const name = newName.trim() || 'New shopping list'
@@ -339,38 +401,84 @@ export function ShoppingListsPage() {
 
           {/* Everything needed section — every list and event on this page combined */}
           <section className="rounded-xl border border-line bg-surface-2 p-4">
-            <h2 className="font-bold mb-3 flex items-center gap-2">
-              <span className="h-4 w-1.5 rounded-full bg-brand" />
-              Everything needed
-            </h2>
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-3">
+              <h2 className="font-bold flex items-center gap-2">
+                <span className="h-4 w-1.5 rounded-full bg-brand" />
+                Everything needed
+              </h2>
+              {combinedItems.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-content-muted">
+                    {combinedDone} of {combinedItems.length} bought
+                  </span>
+                  <button
+                    className="btn-ghost !px-2 !py-1 text-xs"
+                    onClick={() =>
+                      applyChecked(
+                        combinedItems.flatMap((i) => i.refs),
+                        combinedDone !== combinedItems.length,
+                      )
+                    }
+                  >
+                    {combinedDone === combinedItems.length ? 'Uncheck all' : 'Check all'}
+                  </button>
+                </div>
+              )}
+            </div>
             {combinedItems.length === 0 ? (
               <p className="text-sm text-content-muted">
                 Nothing yet — generate a list from a recipe, or add recipes to an event.
               </p>
             ) : (
               <ul className="space-y-2">
-                {combinedItems.map((item) => (
-                  <li key={item.name} className="flex items-start gap-3 rounded-lg p-2 bg-surface hover:bg-surface-3 transition-colors">
-                    <span className="h-5 w-5 shrink-0 rounded-full flex items-center justify-center text-[10px] font-bold text-brand border border-brand/30">
-                      {item.sources.length}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm">
-                        {item.name}
-                        {item.quantity !== undefined ? ` ${item.quantity}` : ''}
-                        {item.unit ? ` ${item.unit}` : ''}
-                      </div>
-                      <div className="text-[11px] text-content-muted">
-                        in {item.sources.join(', ')}
-                      </div>
-                    </div>
-                  </li>
-                ))}
+                {combinedItems.map((item) => {
+                  const done = isCombinedDone(item)
+                  const partly = !done && item.refs.some((r) => r.checked)
+                  return (
+                    <li key={item.name} className="rounded-lg bg-surface hover:bg-surface-3 transition-colors">
+                      <label className="flex items-start gap-3 p-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={done}
+                          // "some of the lists have it" gets the usual dash
+                          ref={(el) => {
+                            if (el) el.indeterminate = partly
+                          }}
+                          onChange={() => applyChecked(item.refs, !done)}
+                          className="h-4 w-4 mt-0.5 shrink-0"
+                          aria-label={`Mark ${item.name} as bought`}
+                        />
+                        <span
+                          className="h-5 w-5 shrink-0 rounded-full flex items-center justify-center text-[10px] font-bold text-brand border border-brand/30"
+                          title={`Needed by ${item.sources.length} lists / events`}
+                        >
+                          {item.sources.length}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div
+                            className={clsx(
+                              'text-sm',
+                              done && 'line-through text-content-muted opacity-70',
+                            )}
+                          >
+                            {item.name}
+                            {item.quantity !== undefined ? ` ${item.quantity}` : ''}
+                            {item.unit ? ` ${item.unit}` : ''}
+                          </div>
+                          <div className="text-[11px] text-content-muted">
+                            in {item.sources.join(', ')}
+                          </div>
+                        </div>
+                      </label>
+                    </li>
+                  )
+                })}
               </ul>
             )}
             <p className="text-xs text-content-muted mt-3">
               Every list on this page — recipe lists, your lists and each event's list. Quantities
-              are summed when the unit matches.
+              are summed when the unit matches, and ticking an ingredient here ticks it off in
+              every list that needs it.
             </p>
           </section>
         </>

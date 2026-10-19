@@ -94,6 +94,9 @@ interface AppState {
   updateShoppingList: (id: string, patch: Partial<ShoppingList>) => Promise<void>
   deleteShoppingList: (id: string) => Promise<void>
   toggleShoppingListItem: (listId: string, itemId: string) => Promise<void>
+  /** Set several of one list's items at once — used by the combined "Everything
+   *  needed" view, where one row stands for items in several lists. */
+  setShoppingListItemsChecked: (listId: string, itemIds: string[], checked: boolean) => Promise<void>
   addShoppingListItem: (listId: string, item: Partial<ShoppingListItem>) => Promise<void>
   deleteShoppingListItem: (listId: string, itemId: string) => Promise<void>
 
@@ -107,6 +110,7 @@ interface AppState {
   syncEventShoppingItems: (eventId: string) => Promise<void>
   toggleEventPantry: (eventId: string, key: string) => Promise<void>
   toggleEventShoppingItem: (itemId: string) => Promise<void>
+  setEventShoppingItemsChecked: (itemIds: string[], checked: boolean) => Promise<void>
   addEventShoppingItem: (
     eventId: string,
     item: { name: string; quantity?: number; unit?: string; raw?: string },
@@ -450,6 +454,27 @@ export const useApp = create<AppState>((set, get) => ({
     await get().refresh()
   },
 
+  /**
+   * Sets the checked state of several items of one list in a single write —
+   * used by the combined \"Everything needed\" list, where one row can stand for
+   * the same ingredient in several lists at once.
+   */
+  async setShoppingListItemsChecked(listId, itemIds, checked) {
+    const list = get().shoppingLists.find((l) => l.id === listId)
+    if (!list) return
+    const ids = new Set(itemIds)
+    if (!list.items.some((i) => ids.has(i.id) && i.checked !== checked)) return
+    const now = Date.now()
+    await db.shoppingLists.update(listId, {
+      items: list.items.map((i) => {
+        if (!ids.has(i.id) || i.checked === checked) return i
+        return { ...i, checked, checkedAt: checked ? now : undefined }
+      }),
+      updatedAt: now,
+    })
+    await get().refresh()
+  },
+
   async addShoppingListItem(listId, item) {
     const list = get().shoppingLists.find((l) => l.id === listId)
     if (!list) return
@@ -617,6 +642,17 @@ export const useApp = create<AppState>((set, get) => ({
     const item = await db.eventShoppingItems.get(itemId)
     if (!item) return
     await db.eventShoppingItems.update(itemId, { checked: !item.checked })
+    await get().refresh()
+  },
+
+  /** Sets the checked state of several event shopping rows in one write — used
+   *  by the combined \"Everything needed\" list. */
+  async setEventShoppingItemsChecked(itemIds, checked) {
+    if (!itemIds.length) return
+    const rows = await db.eventShoppingItems.bulkGet(itemIds)
+    const changed = rows.filter((r) => r && r.checked !== checked).map((r) => ({ ...r!, checked }))
+    if (!changed.length) return
+    await db.eventShoppingItems.bulkPut(changed)
     await get().refresh()
   },
 
