@@ -115,23 +115,29 @@ export function ShoppingListsPage() {
     return sorted.filter((l) => !shown.has(l.id))
   }, [sorted, listsFromRecipes])
 
-  /**
-   * Each event's shopping list, shown live under "Events" and titled with the
-   * event's own name. Only events that actually have items appear.
-   */
-  const eventTiles = useMemo<TileEntry[]>(() => {
+  /** The event shopping items, grouped by event — used by the tiles and the
+   *  combined ingredients section. */
+  const eventItemsByEvent = useMemo(() => {
     const byEvent = new Map<string, EventShoppingItem[]>()
     for (const item of eventItems) {
       const rows = byEvent.get(item.eventId)
       if (rows) rows.push(item)
       else byEvent.set(item.eventId, [item])
     }
+    return byEvent
+  }, [eventItems])
+
+  /**
+   * Each event's shopping list, shown live under "Events" and titled with the
+   * event's own name. Only events that actually have items appear.
+   */
+  const eventTiles = useMemo<TileEntry[]>(() => {
     return [...events]
-      .filter((ev) => (byEvent.get(ev.id)?.length ?? 0) > 0)
+      .filter((ev) => (eventItemsByEvent.get(ev.id)?.length ?? 0) > 0)
       .sort((a, b) => b.createdAt - a.createdAt)
       .map((ev) => {
-        const rows = [...byEvent.get(ev.id)!].sort(
-          // same order as the event's own shopping column: to-dos last, then A–Z
+        const rows = [...eventItemsByEvent.get(ev.id)!].sort(
+          // same order as the event's own shopping column: checked ones last, then A–Z
           (a, b) => Number(a.checked) - Number(b.checked) || a.name.localeCompare(b.name),
         )
         const date = fmtDate(ev.date)
@@ -145,39 +151,56 @@ export function ShoppingListsPage() {
           onSelect: () => openEvent(ev.id),
         }
       })
-  }, [events, eventItems, plannerHex])
+  }, [events, eventItemsByEvent, plannerHex])
 
-  // Combined ingredients across all lists; sum qty when unit matches
+  /**
+   * Every needed ingredient across the page: the real shopping lists and each
+   * event's list, summed when the unit matches. Each entry remembers which
+   * lists / events need it.
+   */
   const combinedItems = useMemo(() => {
-    const map = new Map<string, { name: string; quantity?: number; unit?: string; lists: string[] }>()
-    for (const list of lists) {
-      for (const item of list.items) {
-        const key = item.name.toLowerCase()
-        const existing = map.get(key)
-        if (existing) {
-          if (
-            existing.unit === item.unit &&
-            existing.quantity !== undefined &&
-            item.quantity !== undefined
-          ) {
-            existing.quantity += item.quantity
-          } else if (item.unit !== existing.unit || existing.quantity === undefined) {
-            existing.quantity = undefined
-            existing.unit = item.unit || undefined
-          }
-          if (!existing.lists.includes(list.name)) existing.lists.push(list.name)
-        } else {
-          map.set(key, {
-            name: item.name,
-            quantity: item.quantity,
-            unit: item.unit,
-            lists: [list.name],
-          })
+    const map = new Map<
+      string,
+      { name: string; quantity?: number; unit?: string; sources: string[] }
+    >()
+
+    const add = (source: string, item: { name: string; quantity?: number; unit?: string }) => {
+      const key = item.name.toLowerCase()
+      // "" and undefined both mean "no unit" — treat them as the same so that
+      // a recipe ingredient and a hand-typed item still add up
+      const unit = item.unit?.trim() || undefined
+      const existing = map.get(key)
+      if (existing) {
+        if (
+          existing.unit === unit &&
+          existing.quantity !== undefined &&
+          item.quantity !== undefined
+        ) {
+          existing.quantity += item.quantity
+        } else if (unit !== existing.unit || existing.quantity === undefined) {
+          existing.quantity = undefined
+          existing.unit = unit
         }
+        if (!existing.sources.includes(source)) existing.sources.push(source)
+      } else {
+        map.set(key, {
+          name: item.name,
+          quantity: item.quantity,
+          unit,
+          sources: [source],
+        })
       }
     }
+
+    for (const list of lists) {
+      for (const item of list.items) add(list.name, item)
+    }
+    for (const ev of events) {
+      for (const item of eventItemsByEvent.get(ev.id) ?? []) add(ev.name, item)
+    }
+
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
-  }, [lists])
+  }, [lists, events, eventItemsByEvent])
 
   async function handleCreate() {
     const name = newName.trim() || 'New shopping list'
@@ -322,14 +345,14 @@ export function ShoppingListsPage() {
             </h2>
             {combinedItems.length === 0 ? (
               <p className="text-sm text-content-muted">
-                No ingredients yet — generate a list from a recipe to add ingredients.
+                No ingredients yet — generate a list from a recipe, or add recipes to an event.
               </p>
             ) : (
               <ul className="space-y-2">
                 {combinedItems.map((item) => (
                   <li key={item.name} className="flex items-start gap-3 rounded-lg p-2 bg-surface hover:bg-surface-3 transition-colors">
                     <span className="h-5 w-5 shrink-0 rounded-full flex items-center justify-center text-[10px] font-bold text-brand border border-brand/30">
-                      {item.lists.length}
+                      {item.sources.length}
                     </span>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm">
@@ -338,7 +361,7 @@ export function ShoppingListsPage() {
                         {item.unit ? ` ${item.unit}` : ''}
                       </div>
                       <div className="text-[11px] text-content-muted">
-                        in {item.lists.join(', ')}
+                        in {item.sources.join(', ')}
                       </div>
                     </div>
                   </li>
@@ -346,7 +369,8 @@ export function ShoppingListsPage() {
               </ul>
             )}
             <p className="text-xs text-content-muted mt-3">
-              Quantities are summed when the unit matches across lists.
+              Every list on this page — recipe lists, your lists and each event's list. Quantities
+              are summed when the unit matches.
             </p>
           </section>
         </>
