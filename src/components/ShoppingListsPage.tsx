@@ -65,14 +65,13 @@ interface TileEntry {
 
 /** One underlying row behind a combined ingredient — what a tick has to update. */
 interface CombinedRef {
-  kind: 'list' | 'event'
-  /** which list the row belongs to (real shopping lists only) */
-  listId?: string
+  /** which list the row belongs to */
+  listId: string
   itemId: string
   checked: boolean
 }
 
-/** One ingredient of \"Everything needed\", summed across every list and event. */
+/** One ingredient of "Everything needed", summed across the shopping lists on this page. */
 interface CombinedItem {
   name: string
   quantity?: number
@@ -93,7 +92,6 @@ export function ShoppingListsPage() {
   const createList = useApp((s) => s.createShoppingList)
   const deleteList = useApp((s) => s.deleteShoppingList)
   const setListItemsChecked = useApp((s) => s.setShoppingListItemsChecked)
-  const setEventItemsChecked = useApp((s) => s.setEventShoppingItemsChecked)
   const toast = useApp((s) => s.toast)
 
   const [createOpen, setCreateOpen] = useState(false)
@@ -137,8 +135,7 @@ export function ShoppingListsPage() {
     return sorted.filter((l) => !shown.has(l.id))
   }, [sorted, listsFromRecipes])
 
-  /** The event shopping items, grouped by event — used by the tiles and the
-   *  combined ingredients section. */
+  /** The event shopping items, grouped by event — used by the Events tiles. */
   const eventItemsByEvent = useMemo(() => {
     const byEvent = new Map<string, EventShoppingItem[]>()
     for (const item of eventItems) {
@@ -176,10 +173,11 @@ export function ShoppingListsPage() {
   }, [events, eventItemsByEvent, plannerHex])
 
   /**
-   * Every needed ingredient across the page: the real shopping lists and each
-   * event's list, summed when the unit matches. Each entry remembers which
-   * lists / events need it, and the exact rows behind it so it can be ticked
-   * off from here.
+   * Every needed ingredient across the shopping lists on this page, summed when
+   * the unit matches. Counts standalone lists only — the lists generated from
+   * recipes and the hand-made ones — never the events' lists, whose ingredients
+   * live on the event's own planner page. Each entry remembers which lists need
+   * it, and the exact rows behind it so it can be ticked off from here.
    */
   const combinedItems = useMemo<CombinedItem[]>(() => {
     const map = new Map<string, CombinedItem>()
@@ -221,21 +219,15 @@ export function ShoppingListsPage() {
     for (const list of lists) {
       for (const item of list.items) {
         add(list.name, item, {
-          kind: 'list',
           listId: list.id,
           itemId: item.id,
           checked: item.checked,
         })
       }
     }
-    for (const ev of events) {
-      for (const item of eventItemsByEvent.get(ev.id) ?? []) {
-        add(ev.name, item, { kind: 'event', itemId: item.id, checked: item.checked })
-      }
-    }
 
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
-  }, [lists, events, eventItemsByEvent])
+  }, [lists])
 
   /**
    * Ticks a combined ingredient off everywhere it is needed (or back on).
@@ -243,21 +235,15 @@ export function ShoppingListsPage() {
    */
   async function applyChecked(refs: CombinedRef[], checked: boolean) {
     const byList = new Map<string, string[]>()
-    const eventItemIds: string[] = []
     for (const ref of refs) {
       if (ref.checked === checked) continue
-      if (ref.kind === 'list' && ref.listId) {
-        const ids = byList.get(ref.listId) ?? []
-        ids.push(ref.itemId)
-        byList.set(ref.listId, ids)
-      } else {
-        eventItemIds.push(ref.itemId)
-      }
+      const ids = byList.get(ref.listId) ?? []
+      ids.push(ref.itemId)
+      byList.set(ref.listId, ids)
     }
-    await Promise.all([
-      ...[...byList].map(([listId, itemIds]) => setListItemsChecked(listId, itemIds, checked)),
-      setEventItemsChecked(eventItemIds, checked),
-    ])
+    await Promise.all(
+      [...byList].map(([listId, itemIds]) => setListItemsChecked(listId, itemIds, checked)),
+    )
   }
 
   /** A combined row counts as bought once every underlying row is ticked. */
@@ -399,7 +385,7 @@ export function ShoppingListsPage() {
             </section>
           )}
 
-          {/* Everything needed section — every list and event on this page combined */}
+          {/* Everything needed section — the standalone lists on this page combined */}
           <section className="rounded-xl border border-line bg-surface-2 p-4">
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-3">
               <h2 className="font-bold flex items-center gap-2">
@@ -427,7 +413,7 @@ export function ShoppingListsPage() {
             </div>
             {combinedItems.length === 0 ? (
               <p className="text-sm text-content-muted">
-                Nothing yet — generate a list from a recipe, or add recipes to an event.
+                Nothing yet — generate a list from a recipe, or create a new list.
               </p>
             ) : (
               <ul className="space-y-2">
@@ -450,7 +436,7 @@ export function ShoppingListsPage() {
                         />
                         <span
                           className="h-5 w-5 shrink-0 rounded-full flex items-center justify-center text-[10px] font-bold text-brand border border-brand/30"
-                          title={`Needed by ${item.sources.length} lists / events`}
+                          title={`Needed by ${item.sources.length} list${item.sources.length === 1 ? '' : 's'}`}
                         >
                           {item.sources.length}
                         </span>
@@ -476,9 +462,9 @@ export function ShoppingListsPage() {
               </ul>
             )}
             <p className="text-xs text-content-muted mt-3">
-              Every list on this page — recipe lists, your lists and each event's list. Quantities
-              are summed when the unit matches, and ticking an ingredient here ticks it off in
-              every list that needs it.
+              The shopping lists on this page — recipe lists and your own lists. Quantities are
+              summed when the unit matches, and ticking an ingredient here ticks it off in every
+              list that needs it. Events keep their own lists on the event&apos;s planner page.
             </p>
           </section>
         </>
