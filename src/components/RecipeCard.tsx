@@ -1,12 +1,17 @@
 import { Clock, Heart } from 'lucide-react'
 import type { Recipe } from '../types'
 import { useApp } from '../store/useApp'
+import { HealthScore } from './ui/NutritionBadge'
 
 export function RecipeCard({ recipe, color }: { recipe: Recipe; color: string }) {
   const openRecipe = useApp((s) => s.openRecipe)
   const toggleFavorite = useApp((s) => s.toggleFavorite)
 
   const totalMinutes = (recipe.prepMinutes ?? 0) + (recipe.cookMinutes ?? 0)
+  const health =
+    recipe.nutrition && recipe.nutrition.matched > 0 && Number.isFinite(recipe.nutrition.score)
+      ? recipe.nutrition
+      : null
 
   return (
     <div
@@ -49,6 +54,13 @@ export function RecipeCard({ recipe, color }: { recipe: Recipe; color: string })
             className={recipe.favorite ? 'fill-rose-500 text-rose-500' : 'text-white'}
           />
         </button>
+
+        {/* health index, bottom-right, over a soft scrim so it reads on any photo */}
+        {health && (
+          <div className="absolute bottom-1.5 right-1.5 rounded-full bg-black/45 backdrop-blur px-1 py-1">
+            <HealthScore nutrition={health} size={38} showLabel={false} />
+          </div>
+        )}
       </div>
 
       <div className="p-3">
