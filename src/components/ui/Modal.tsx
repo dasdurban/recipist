@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -27,7 +28,10 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
 
   if (!open) return null
 
-  return (
+  // Portalled to <body>: several triggers sit inside the sticky header, whose
+  // `backdrop-blur` would otherwise become the containing block for this
+  // `fixed` overlay (and trap its z-index), pushing the panel off screen.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div
         className="absolute inset-0 bg-black/50 animate-fade-in"
@@ -61,6 +65,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
           </footer>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
