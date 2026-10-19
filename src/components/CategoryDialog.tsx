@@ -52,7 +52,7 @@ export function CategoryDialog({
       await updateCategory(category.id, { name: trimmed, colorSet, colorName })
       toast('Category updated.', 'success')
     } else {
-      await createCategory(trimmed, { colorSet })
+      await createCategory(trimmed, { colorSet, colorName })
       toast('Category created.', 'success')
     }
     onClose()

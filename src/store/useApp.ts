@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type {
   Category,
+  ColorName,
   ColorSet,
   EventIngredientCheck,
   EventPlan,
@@ -76,7 +77,10 @@ interface AppState {
   pauseTimer: () => void
   resetTimer: () => void
 
-  createCategory: (name: string, opts?: { colorSet?: ColorSet }) => Promise<Category>
+  createCategory: (
+    name: string,
+    opts?: { colorSet?: ColorSet; colorName?: ColorName },
+  ) => Promise<Category>
   updateCategory: (id: string, patch: Partial<Category>) => Promise<void>
   deleteCategory: (id: string) => Promise<void>
   reorderCategories: (orderedIds: string[]) => Promise<void>
@@ -365,7 +369,7 @@ export const useApp = create<AppState>((set, get) => ({
       id: uid('cat_'),
       name: name.trim(),
       colorSet: set2,
-      colorName: pickColorForName(name, set2),
+      colorName: opts?.colorName ?? pickColorForName(name, set2),
       order: get().categories.length,
       createdAt: now,
       updatedAt: now,
