@@ -12,11 +12,18 @@ type Tab = 'link' | 'photo'
 
 export function ImportDialog({
   open,
+  initialUrl,
   defaultCategoryId,
   onClose,
   onImported,
 }: {
   open: boolean
+  /**
+   * A page URL supplied from outside the dialog — the "Save to Recipe App"
+   * bookmarklet. When present the dialog opens on the Link tab and imports it
+   * without a second click.
+   */
+  initialUrl?: string | null
   defaultCategoryId: string | null
   onClose: () => void
   onImported: (recipe: Recipe, review: boolean) => void
@@ -45,6 +52,26 @@ export function ImportDialog({
     setCategoryIds(valid ? [defaultCategoryId!] : [])
   }, [open, defaultCategoryId])
 
+  // A URL handed in from a `recipist://` link is imported immediately, so the
+  // bookmarklet is a single click rather than click-then-fetch. The ref keeps it
+  // from re-firing while the dialog stays open, and lets the user edit and retry
+  // the URL by hand if the first attempt fails.
+  const importedInitialUrl = useRef<string | null>(null)
+  useEffect(() => {
+    if (!open) {
+      importedInitialUrl.current = null
+      return
+    }
+    const incoming = initialUrl?.trim()
+    if (!incoming || importedInitialUrl.current === incoming) return
+    importedInitialUrl.current = incoming
+    setTab('link')
+    void fetchLink(incoming)
+    // fetchLink is stable for the life of the dialog; re-running on it would
+    // restart the import on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialUrl])
+
   function reset() {
     setUrl('')
     setPreview(null)
@@ -58,9 +85,10 @@ export function ImportDialog({
     onClose()
   }
 
-  async function fetchLink() {
-    const trimmed = url.trim()
+  async function fetchLink(explicitUrl?: string) {
+    const trimmed = (explicitUrl ?? url).trim()
     if (!trimmed) return
+    setUrl(trimmed)
     setBusy(true)
     setStatus('Fetching the page…')
     try {
@@ -195,7 +223,7 @@ export function ImportDialog({
                 type="url"
                 inputMode="url"
               />
-              <button className="btn-primary shrink-0" onClick={fetchLink} disabled={busy || !url.trim()}>
+              <button className="btn-primary shrink-0" onClick={() => fetchLink()} disabled={busy || !url.trim()}>
                 {busy ? <Loader2 size={16} className="animate-spin" /> : 'Fetch'}
               </button>
             </div>

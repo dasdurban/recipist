@@ -5,7 +5,11 @@ Comment={{comment}}
 Exec={{exec}}
 Icon={{icon}}
 Terminal=false
-Categories={{categories}}
+# Hard-coded rather than left to the template's category variable. Tauri
+# derives that from bundle.category, which is set to Lifestyle for the Mac App
+# Store's benefit, and its freedesktop mapping turns Lifestyle into "Education"
+# — wrong for a recipe app. This is the platform-correct value for Linux.
+Categories=Utility;
 Keywords=recipe;recipes;cooking;food;meal;kitchen;
 StartupNotify=true
 StartupWMClass={{exec}}

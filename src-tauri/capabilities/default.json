@@ -21,9 +21,17 @@
     "fs:allow-read-text-file",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "http://*" }, { "url": "https://*" }]
+      "allow": [
+        {
+          "url": "http://*"
+        },
+        {
+          "url": "https://*"
+        }
+      ]
     },
     "opener:allow-reveal-item-in-dir",
-    "core:webview:allow-print"
+    "core:webview:allow-print",
+    "deep-link:default"
   ]
 }

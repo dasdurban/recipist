@@ -8,6 +8,7 @@ import { RecipeView } from './components/RecipeView'
 import { emptyRecipe, RecipeEditor } from './components/RecipeEditor'
 import { CategoryDialog } from './components/CategoryDialog'
 import { ImportDialog } from './components/ImportDialog'
+import { onImportUrl } from './lib/deepLink'
 import { ShoppingListsPage } from './components/ShoppingListsPage'
 import { ShoppingListView } from './components/ShoppingListView'
 import { EventPlannerPage } from './components/EventPlannerPage'
@@ -42,6 +43,9 @@ export default function App() {
     category: null,
   })
   const [importOpen, setImportOpen] = useState(false)
+  // Set only when the import was started by a `recipist://` link, so the dialog
+  // opens with the URL already in place and imports it straight away.
+  const [importUrl, setImportUrl] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [shoppingListsOpen, setShoppingListsOpen] = useState(false)
   const [eventPlannerOpen, setEventPlannerOpen] = useState(false)
@@ -87,6 +91,26 @@ export default function App() {
     if (activeRecipeId && shoppingListsOpen) setShoppingListsOpen(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRecipeId])
+
+  // "Save to Recipe App" links. The URL arrives either from the process
+  // arguments (the link started the app) or as an event (the app was already
+  // running); both land here and open the importer with the link in place.
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined
+    let cancelled = false
+    void onImportUrl((url) => {
+      setImportUrl(url)
+      setImportOpen(true)
+    }).then((off) => {
+      // The effect can be torn down before the listener is attached.
+      if (cancelled) off()
+      else unsubscribe = off
+    })
+    return () => {
+      cancelled = true
+      unsubscribe?.()
+    }
+  }, [])
 
   // boot: open the database, create starter categories, apply the theme
   useEffect(() => {
@@ -300,8 +324,12 @@ export default function App() {
 
       <ImportDialog
         open={importOpen}
+        initialUrl={importUrl}
         defaultCategoryId={activeCategoryId === FAVORITES_ID ? null : activeCategoryId}
-        onClose={() => setImportOpen(false)}
+        onClose={() => {
+          setImportOpen(false)
+          setImportUrl(null)
+        }}
         onImported={(recipe, review) => {
           if (review) {
             setEditing(recipe)

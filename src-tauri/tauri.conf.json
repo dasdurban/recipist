@@ -27,6 +27,23 @@
     },
     "enableGTKAppId": true
   },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "recipist"
+        ]
+      },
+      "mobile": [
+        {
+          "scheme": [
+            "recipist"
+          ],
+          "appLink": false
+        }
+      ]
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

@@ -4,7 +4,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
 use serde::Serialize;
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 /// Recipe sites routinely 403 non-browser user agents, so look like Chrome.
 const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 \
@@ -301,8 +301,8 @@ fn fetch_page_in_webview(app: AppHandle, url: String, block_ads: bool) -> Result
     let target = url.parse().map_err(|_| "invalid url".to_string())?;
     let label = format!("page-fetcher-{}", next_fetch_id());
 
-    let mut builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(target))
-        .visible(false);
+    let mut builder =
+        WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(target)).visible(false);
     if block_ads {
         builder = builder.initialization_script_for_all_frames(PAGE_SCRIPT);
     }
@@ -333,9 +333,225 @@ async fn fetch_via_webview(
         .map_err(|e| e.to_string())?
 }
 
+/// Parses a `recipist://import?url=...` deep link into the page URL to import.
+///
+/// Tauri checks an incoming argument against the configured schemes, but it does
+/// not check the shape, so anything on the machine can call
+/// `recipist://anything`. Only the one route we implement is accepted, and the
+/// wrapped URL still has to be http(s), which is the same gate `fetch_text`
+/// applies.
+fn import_url_from_deep_link(raw: &str) -> Option<String> {
+    let rest = raw.strip_prefix("recipist://")?;
+
+    // Both `recipist://import?url=...` and `recipist:///import?url=...` are
+    // produced by one browser or another, so leading slashes are trimmed rather
+    // than treated as part of the route.
+    let rest = rest.trim_start_matches('/');
+    let (route, query) = match rest.split_once('?') {
+        Some((route, query)) => (route, query),
+        None => (rest, ""),
+    };
+    if route != "import" {
+        return None;
+    }
+
+    let value = query
+        .split('&')
+        .filter_map(|pair| pair.split_once('='))
+        .find(|(key, _)| *key == "url")
+        .map(|(_, value)| value)?;
+
+    let decoded = percent_decode(value);
+    if decoded.starts_with("http://") || decoded.starts_with("https://") {
+        Some(decoded)
+    } else {
+        None
+    }
+}
+
+/// Decodes a percent-encoded query value. Implemented here rather than pulled in
+/// as a dependency: the input is a single URL, and `+` is deliberately left
+/// alone because it is valid inside a URL (unlike in a form body).
+fn percent_decode(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' && index + 2 < bytes.len() {
+            let hex = std::str::from_utf8(&bytes[index + 1..index + 3]).unwrap_or("");
+            if let Ok(byte) = u8::from_str_radix(hex, 16) {
+                out.push(byte);
+                index += 3;
+                continue;
+            }
+        }
+        out.push(bytes[index]);
+        index += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+#[cfg(test)]
+mod deep_link_tests {
+    use super::{import_url_from_deep_link, percent_decode};
+
+    #[test]
+    fn accepts_the_route_a_bookmarklet_produces() {
+        assert_eq!(
+            import_url_from_deep_link("recipist://import?url=https%3A%2F%2Fexample.com%2Fbrownies"),
+            Some("https://example.com/brownies".to_string())
+        );
+    }
+
+    #[test]
+    fn tolerates_the_extra_slash_browsers_add() {
+        // Safari and some Linux handlers turn `recipist://import` into
+        // `recipist:///import`, which must not be read as a different route.
+        assert_eq!(
+            import_url_from_deep_link("recipist:///import?url=https%3A%2F%2Fexample.com%2Fx"),
+            Some("https://example.com/x".to_string())
+        );
+    }
+
+    #[test]
+    fn reads_a_url_that_is_not_encoded() {
+        assert_eq!(
+            import_url_from_deep_link("recipist://import?url=https://example.com/raw"),
+            Some("https://example.com/raw".to_string())
+        );
+    }
+
+    #[test]
+    fn finds_the_url_among_other_parameters() {
+        assert_eq!(
+            import_url_from_deep_link("recipist://import?ref=share&url=https%3A%2F%2Fa.example%2Fb&x=1"),
+            Some("https://a.example/b".to_string())
+        );
+    }
+
+    #[test]
+    fn rejects_other_routes() {
+        // Anything else on the machine can call `recipist://`, so the route has
+        // to be matched exactly rather than ignored.
+        assert_eq!(import_url_from_deep_link("recipist://settings?url=https%3A%2F%2Fa.com"), None);
+        assert_eq!(import_url_from_deep_link("recipist://imports?url=https%3A%2F%2Fa.com"), None);
+        assert_eq!(import_url_from_deep_link("recipist://"), None);
+        assert_eq!(import_url_from_deep_link("recipist://delete"), None);
+    }
+
+    #[test]
+    fn rejects_schemes_that_are_not_web_pages() {
+        // The wrapped URL is the same gate `fetch_text` applies, so a link can
+        // never be used to read a local file or run a command.
+        assert_eq!(import_url_from_deep_link("recipist://import?url=file%3A%2F%2F%2Fetc%2Fpasswd"), None);
+        assert_eq!(import_url_from_deep_link("recipist://import?url=javascript%3Aalert(1)"), None);
+        assert_eq!(import_url_from_deep_link("recipist://import?url=recipist%3A%2F%2Fimport"), None);
+        assert_eq!(import_url_from_deep_link("recipist://import?url="), None);
+    }
+
+    #[test]
+    fn rejects_a_link_with_no_url_parameter() {
+        assert_eq!(import_url_from_deep_link("recipist://import"), None);
+        assert_eq!(import_url_from_deep_link("recipist://import?other=1"), None);
+    }
+
+    #[test]
+    fn rejects_arguments_that_are_not_links_at_all() {
+        // A normal launch passes things like `--flag`, which must be ignored.
+        assert_eq!(import_url_from_deep_link("--flag"), None);
+        assert_eq!(import_url_from_deep_link(""), None);
+        assert_eq!(import_url_from_deep_link("/usr/local/bin/recipist"), None);
+    }
+
+    #[test]
+    fn survives_a_malformed_escape() {
+        // A truncated or non-hex escape must not panic, and should pass through
+        // rather than swallowing the rest of the string.
+        assert_eq!(percent_decode("abc%"), "abc%");
+        assert_eq!(percent_decode("abc%2"), "abc%2");
+        assert_eq!(percent_decode("abc%zz"), "abc%zz");
+        assert_eq!(percent_decode("%20"), " ");
+    }
+
+    #[test]
+    fn keeps_plus_literally() {
+        // In a URL `+` means plus, not space; decoding it as a space would break
+        // query strings that legitimately contain one.
+        assert_eq!(percent_decode("a+b"), "a+b");
+    }
+
+    #[test]
+    fn handles_multibyte_characters() {
+        // Recipe URLs may carry accented titles, which percent-encode as UTF-8
+        // byte sequences rather than single bytes.
+        assert_eq!(percent_decode("%C3%A9"), "é");
+    }
+}
+
+
+/// The deep link the app was launched with, held until the frontend asks for it.
+///
+/// A cold start arrives before any window exists, so the URL cannot be emitted
+/// as an event yet. The frontend calls `take_pending_import_url` once on mount
+/// and the event covers every later case.
+static PENDING_IMPORT_URL: OnceLock<std::sync::Mutex<Option<String>>> = OnceLock::new();
+
+fn pending_import_url() -> &'static std::sync::Mutex<Option<String>> {
+    PENDING_IMPORT_URL.get_or_init(|| std::sync::Mutex::new(None))
+}
+
+/// Hands the URL of a deep link to the frontend, bringing the window forward.
+///
+/// Called both when a running instance is asked to open a link and when a link
+/// started the process. Emitting is harmless before the webview has loaded its
+/// listener, because the cold-start case is also readable via
+/// `take_pending_import_url`.
+fn deliver_import_url(app: &AppHandle, url: String) {
+    if let Ok(mut slot) = pending_import_url().lock() {
+        *slot = Some(url.clone());
+    }
+
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+
+    let _ = app.emit("deep-link://import", url);
+}
+
+/// Returns the deep link the app was launched with, and clears it.
+///
+/// The frontend calls this once on mount; anything later arrives as an event.
+#[tauri::command]
+fn take_pending_import_url() -> Option<String> {
+    pending_import_url().lock().ok().and_then(|mut slot| slot.take())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    // Single instance must be registered first: a second launch (which is what a
+    // `recipist://` link does on Windows and Linux) forwards its arguments here
+    // instead of starting a rival process with its own database.
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // The deep link arrives as one of the arguments. Tauri has already
+            // matched it against the configured scheme, but the route is still
+            // ours to validate.
+            for arg in args.iter().skip(1) {
+                if let Some(url) = import_url_from_deep_link(arg) {
+                    deliver_import_url(app, url);
+                    break;
+                }
+            }
+        }));
+    }
+
+    builder
+        .plugin(tauri_plugin_deep_link::init())
         // Native shell plugins. The webview can't open a new window (no
         // `new_window_req_handler` is registered, so wry denies it) and its
         // downloads aren't wired up without an `on_download` hook — these three
@@ -347,7 +563,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             fetch_text,
             fetch_binary,
-            fetch_via_webview
+            fetch_via_webview,
+            take_pending_import_url
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -357,13 +574,58 @@ pub fn run() {
                         .build(),
                 )?;
             }
+
+            // A link that started this process is in the command line, and the
+            // plugin's own event fires too late for the frontend to have a
+            // listener. Record it here so `take_pending_import_url` finds it.
+            for arg in std::env::args().skip(1) {
+                if let Some(url) = import_url_from_deep_link(&arg) {
+                    if let Ok(mut slot) = pending_import_url().lock() {
+                        *slot = Some(url);
+                    }
+                    break;
+                }
+            }
+
+            // Links opened while the app runs come through the plugin. Its own
+            // `deep-link://new-url` event is consolidated into the single event
+            // the frontend listens to, so there is one path on every platform.
+            {
+                use tauri::Listener;
+                let handle = app.handle().clone();
+                app.listen("deep-link://new-url", move |event| {
+                    if let Ok(urls) = serde_json::from_str::<Vec<String>>(event.payload()) {
+                        for raw in urls {
+                            if let Some(url) = import_url_from_deep_link(&raw) {
+                                deliver_import_url(&handle, url);
+                                break;
+                            }
+                        }
+                    }
+                });
+            }
+
+            // On Windows and Linux the scheme is associated at install time, but
+            // the association points at the packaged executable. Registering
+            // again at runtime makes links work in development, and repairs the
+            // pointer if an AppImage is moved. macOS resolves schemes from
+            // Info.plist only, so there is nothing to re-register there.
+            #[cfg(any(windows, target_os = "linux"))]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                if let Err(error) = app.deep_link().register_all() {
+                    log::warn!("could not register the recipist:// scheme: {error}");
+                }
+            }
+
             Ok(())
         })
         // The detached kitchen-timer window keeps the process alive, so closing
         // the main window has to end the app itself — as it did before the timer
         // had a window of its own.
         .on_window_event(|window, event| {
-            if window.label() == "main" && matches!(event, tauri::WindowEvent::CloseRequested { .. })
+            if window.label() == "main"
+                && matches!(event, tauri::WindowEvent::CloseRequested { .. })
             {
                 window.app_handle().exit(0);
             }
