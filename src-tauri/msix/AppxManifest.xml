@@ -68,6 +68,23 @@
         Square44x44Logo="Assets\Square44x44Logo.png">
         <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" Square71x71Logo="Assets\Square71x71Logo.png" Square310x310Logo="Assets\Square310x310Logo.png" />
       </uap:VisualElements>
+
+      <!-- Claims the recipist:// link the browser button sends. Without this
+           the app installs fine but the link has no handler, so clicking the
+           bookmark silently does nothing.
+
+           The manifest is the only place this can be declared for a packaged
+           app: the deep-link plugin's runtime registration writes a registry
+           key, and an MSIX app's writes land in a virtualised hive that the
+           shell does not consult when resolving a protocol. On macOS and Linux
+           the equivalent is Info.plist and the .desktop file. -->
+      <Extensions>
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="recipist">
+            <uap:DisplayName>Save to Recipe App</uap:DisplayName>
+          </uap:Protocol>
+        </uap:Extension>
+      </Extensions>
     </Application>
   </Applications>
 </Package>
