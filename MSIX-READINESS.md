@@ -102,6 +102,20 @@ windows-store-msix   →   TheRecipeApp_0.1.0.0_x64.msix
 Download it from the run's summary page and upload it to Partner Center. This
 is the normal route; the PowerShell script is only needed for local testing.
 
+The package is around 6 MB: the app binary plus the six tile assets. Debug
+symbols are deliberately not staged.
+
+### If the Windows job never starts
+
+During setup, several Windows jobs sat in the queue for ~15 minutes and were
+then cancelled, with no runner ever assigned (`runner_name` empty) and no steps
+recorded. The Linux job in the same run was unaffected, and GitHub reported no
+incident.
+
+Re-running the failed jobs (`gh run rerun <id> --failed`) fixed it, and the
+packaging then succeeded. It was transient runner allocation, not a workflow
+problem — so if it recurs, rerun rather than editing the workflow.
+
 ## Local testing: no certificate needed
 
 Developer Mode must be on (Settings → System → For developers).
