@@ -86,7 +86,20 @@ export function ImportDialog({
       setStatus('Scanning text…')
       const text = await ocrImage(file, (p) => {
         const pct = Math.round((p.progress ?? 0) * 100)
-        setStatus(`${p.status}… ${pct}%`)
+        // tesseract.js reports progress with its own developer-facing status
+        // strings ("loading language traineddata"). Show plain wording, and
+        // name the first-run download so the wait is not read as a hang.
+        const label =
+          p.status === 'loading language traineddata'
+            ? 'Preparing scanner (one-time download)'
+            : p.status === 'loading tesseract core'
+              ? 'Preparing scanner'
+              : p.status === 'initializing tesseract' || p.status === 'initializing api'
+                ? 'Starting scanner'
+                : p.status === 'recognizing text'
+                  ? 'Reading the text'
+                  : p.status
+        setStatus(`${label}… ${pct}%`)
       })
       const parsed = parseOcrText(text)
       if (!parsed.ingredients.length && !parsed.instructions.length) {
@@ -95,8 +108,21 @@ export function ImportDialog({
         setPreview(parsed)
         toast(`Scanned "${parsed.title}".`, 'success')
       }
-    } catch {
-      toast('Scanning failed. Try again with a clearer photo.', 'error')
+    } catch (err) {
+      // The scanner fetches its worker and model on first use, so a failure
+      // before any text was read is usually a missing download rather than a
+      // bad photo. Saying "try a clearer photo" sent people back to re-shoot
+      // an image that was never the problem.
+      const detail = err instanceof Error ? err.message : String(err)
+      const offline = typeof navigator !== 'undefined' && navigator.onLine === false
+      const networkish =
+        offline || /fetch|network|load|import|abort|script error/i.test(detail)
+      toast(
+        networkish
+          ? 'Scanning needs a connection the first time, to download the reader. Connect and try again.'
+          : 'Scanning failed. Try again with a clearer photo.',
+        'error',
+      )
     } finally {
       setStatus('')
       setBusy(false)
@@ -221,6 +247,16 @@ export function ImportDialog({
         className="hidden"
         onChange={(e) => handlePhoto(e.target.files?.[0])}
       />
+
+      {/* Photo scanning leans on a recognition model that is fetched on first
+          use, so the requirement is stated before the button is pressed rather
+          than discovered as a failure. Only the language model is kept in
+          IndexedDB; the worker script itself lives in the browser cache, which
+          macOS may clear, so the wording promises no more than is guaranteed. */}
+      <p className="mt-3 text-xs text-content-muted">
+        Scanning a photo downloads a reader the first time and needs a
+        connection for that. After that it usually runs offline.
+      </p>
 
       {busy && status && (
         <div className="mt-4 flex items-center gap-2 text-sm text-content-muted">

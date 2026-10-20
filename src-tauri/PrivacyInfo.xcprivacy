@@ -76,10 +76,15 @@
     <!--
       Photos the user imports for OCR (scanning a recipe off a page or card).
 
-      The image is read locally, passed to tesseract.js in-process to extract
-      text, and the photo is saved into the local recipe record. It is never
-      uploaded to the developer. Marked as Photos or Videos / Other User Content
-      depending on reading; we declare it as user content to be safe.
+      The image is read locally, handed to tesseract.js to extract text, and the
+      photo is saved into the local recipe record. It is never uploaded to the
+      developer.
+
+      On the FIRST scan the recognition worker and its language model are
+      downloaded from cdn.jsdelivr.net; the model is then cached in the app's
+      own IndexedDB. The image itself is never part of that request — only the
+      first-run download touches the network. Marked as Photos or Videos, which
+      is the closest available type for an image the user supplies.
     -->
     <dict>
       <key>NSPrivacyCollectedDataType</key>

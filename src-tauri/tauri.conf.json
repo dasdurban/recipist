@@ -39,7 +39,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "category": "Utility",
+    "category": "Lifestyle",
     "shortDescription": "A personal recipe organiser",
     "android": {
       "debugApplicationIdSuffix": ".debug"
@@ -56,6 +56,9 @@
         "postInstallScript": "linux/postinst.sh",
         "postRemoveScript": "linux/postrm.sh"
       }
+    },
+    "macOS": {
+      "minimumSystemVersion": "12.0"
     },
     "windows": {
       "webviewInstallMode": {
