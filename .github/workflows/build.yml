@@ -19,17 +19,11 @@ jobs:
       contents: write
     strategy:
       fail-fast: false
+      # macOS is deliberately absent: it is built locally on the Mac (npx tauri
+      # build). This keeps the private-repo minute cost down, since macOS runners
+      # bill at 10x while Windows is 2x and Linux is 1x.
       matrix:
         include:
-          - name: macOS (Apple silicon)
-            platform: macos-latest
-            args: '--target aarch64-apple-darwin'
-            artifact: macos-arm64
-          - name: macOS (Intel)
-            platform: macos-latest
-            args: '--target x86_64-apple-darwin'
-            artifact: macos-x64
-          # x86_64 macOS runners are retiring, hence the two macos-latest entries.
           - name: Windows
             platform: windows-latest
             args: ''
@@ -52,8 +46,6 @@ jobs:
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ startsWith(matrix.platform, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       # Caches the Cargo registry and the compiled dependencies, which is most of
       # a Tauri build's wall time.
@@ -99,8 +91,6 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           path: |
-            src-tauri/target/release/bundle/dmg/*.dmg
-            src-tauri/target/release/bundle/macos/*.app
             src-tauri/target/**/release/bundle/nsis/*.exe
             src-tauri/target/**/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/appimage/*.AppImage
