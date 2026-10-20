@@ -15,7 +15,7 @@ unaffected by everything here.
 | Build script | ✅ `scripts/build-mas.sh` |
 | Privacy policy | ✅ Written, and live |
 | **Xcode 26 or later installed** | ❌ **Blocked — see below** |
-| Data migration for the sandbox container | ❌ **Not started — see below** |
+| Data migration for the sandbox container | ✅ Not needed — shipping as a fresh start |
 | App Store Connect listing | ❌ Not started |
 
 ## Privacy policy
@@ -56,7 +56,7 @@ OS upgrade is a prerequisite.
 
 ## Blocker 2: the sandbox moves the data directory
 
-**This is the part that can silently lose a user's recipes.**
+**Settled as a non-issue: ship the MAS build as a fresh start.**
 
 Today (unsandboxed) WebKit stores the app's data at:
 
@@ -70,25 +70,24 @@ Once the app is sandboxed, macOS relocates that to the container:
 ~/Library/Containers/com.recipist.app/Data/Library/WebKit/
 ```
 
-The app will therefore start with **no recipes**, because it is looking in a
-directory it has never written to. This affects anyone upgrading from the
-direct-download build — including you, since your real data is the 9.7 MB store
-under `~/Library/WebKit/com.recipist.app/`.
+The app would therefore start with **no recipes**, because it is looking in a
+directory it has never written to.
 
-Options, in order of preference:
+That affects only someone upgrading from the direct-download build. Since there
+is no user base yet, there is nobody in that position: every build so far is a
+test build, so this is a theoretical concern rather than a migration to write.
+No helper, no first-launch copy, no release-notes caveat.
 
-1. **Ship the MAS build as a fresh start.** Simple and honest for a new app on a
-   new channel, and it sidesteps a sandbox-escape problem entirely. Users on the
-   direct-download build migrate with the backup/export feature that already
-   exists.
-2. **Write a one-time migration.** On first launch, detect the pre-sandbox store
-   and copy it into the container. **This cannot be done with the sandbox
-   enabled** — a sandboxed app has no read access to `~/Library/WebKit/`. It
-   would need a temporary unsandboxed helper, or the user does a manual
-   export/import once. Treat this as a real project, not a quick fix.
+The other option was a one-time migration that detects the pre-sandbox store
+and copies it into the container. It is worth recording why that was rejected
+rather than merely postponed: **it cannot be done with the sandbox enabled.** A
+sandboxed app has no read access to `~/Library/WebKit/`, so it would need a
+temporary unsandboxed helper or a manual export/import. That is a real project,
+and there is no data in the wild that would justify it.
 
-Recommendation: **option 1.** Document it in the release notes and point at the
-existing backup feature.
+This only becomes live again if an unsandboxed build ships to real users before
+the sandboxed one does. At that point the answer is the app's existing backup
+and export: export from the old build, import into the new one.
 
 ## What was declared, and why
 

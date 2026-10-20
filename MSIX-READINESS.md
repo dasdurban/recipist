@@ -219,17 +219,19 @@ can be filled with sample content without any of it leaving the machine.
 ## Data location, and upgrading from the MSI
 
 MSIX installs into a container, so `%LOCALAPPDATA%` is redirected to the
-package's private store. Recipes live in IndexedDB under that path, which means:
+package's private store. Recipes live in IndexedDB under that path, which means
+a user moving from the MSI build to the Store build would appear to lose their
+recipes: the data is still on disk, but at the pre-package location, which the
+packaged app cannot see.
 
-**A user moving from the MSI build to the Store build appears to lose their
-recipes.** The data is still on disk, but at the pre-package location, and the
-packaged app cannot see it.
+**This is settled as a non-issue.** There is no user base yet, so there is
+nothing to migrate and no messaging to get right. Every build so far is a test
+build, and the Store build will be the first one anyone but the developer
+installs. The same reasoning applies to the Mac App Store sandbox.
 
-The intended answer is a fresh start, using the app's existing backup and
-export: export from the MSI build, import into the Store build. The same issue
-exists on macOS with the App Store sandbox, and gets the same treatment.
-
-Worth deciding before launch, since it affects what you tell early users.
+It only becomes relevant if a build ships to real users before the Store
+version does. At that point the answer would be the app's existing backup and
+export: export from the old build, import into the packaged one.
 
 ## Files
 
