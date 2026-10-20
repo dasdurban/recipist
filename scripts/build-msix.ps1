@@ -170,7 +170,7 @@ if ($Register) {
 $msixPath = Join-Path $outputDir "TheRecipeApp_${quad}_x64.msix"
 Write-Host ""
 Write-Host "Packing with MakeAppx..."
-MakeAppx.exe pack /d $staging /p $msixPath /o
+& $makeAppx.Source pack /d $staging /p $msixPath /o
 if ($LASTEXITCODE -ne 0) { Write-Error "MakeAppx failed." }
 
 $size = [math]::Round((Get-Item $msixPath).Length / 1MB, 2)
