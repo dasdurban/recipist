@@ -1,0 +1,44 @@
+name: pages
+
+# Publishes docs/ to GitHub Pages, which gives the privacy policy the public
+# HTTPS URL that the Mac App Store requires. (Microsoft also accepts the policy
+# as pasted text, but Apple does not.)
+#
+# NOTE: GitHub Pages is only available on the free plan when the repository is
+# public. If this repo is ever made private again, this workflow will fail at
+# the "configure-pages" step and the policy URL will stop serving — in that
+# case, host docs/ elsewhere (Cloudflare Pages, Netlify) or upgrade the plan.
+
+on:
+  push:
+    branches: [main]
+    paths: ['docs/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than cancelling it mid-publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

@@ -16,7 +16,7 @@ recipe from a website, or syncing to storage you set up yourself.
 The Recipe App is developed and published by **Victor ("we", "us")**. For any
 question about this policy or your data, contact:
 
-**[YOUR CONTACT EMAIL]**
+**dasleveille@gmail.com**
 
 ## Information the app handles
 
@@ -166,7 +166,7 @@ above, and only because you asked the app to contact them:
 
 ## Contact
 
-**[YOUR CONTACT EMAIL]**
+**dasleveille@gmail.com**
 
 ---
 
