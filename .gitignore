@@ -17,3 +17,6 @@ android/build
 
 # Tauri
 src-tauri/target
+
+# Microsoft Store identity (account-specific, not a secret but not shareable)
+src-tauri/msix/identity.json

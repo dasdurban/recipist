@@ -1,0 +1,18 @@
+{
+  "_comment": [
+    "Copy this file to identity.json and fill in the values from Partner Center:",
+    "Product management > App identity (for the reserved app name).",
+    "",
+    "They are case-sensitive, and spaces and punctuation must match exactly.",
+    "Publisher must equal the subject of the certificate Microsoft uses when it",
+    "re-signs the package, so copy the string verbatim.",
+    "",
+    "identity.json is gitignored because it is account-specific."
+  ],
+
+  "identityName": "1234Publisher.TheRecipeApp",
+  "identityPublisher": "CN=1A2B3C4D-5E6F-7890-ABCD-EF1234567890",
+  "publisherDisplayName": "Your Publisher Name",
+  "packageFamilyName": "1234Publisher.TheRecipeApp_abc123defghij",
+  "storeId": "9NBLGGH4XXXX"
+}
