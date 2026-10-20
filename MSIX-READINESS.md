@@ -11,7 +11,8 @@ each piece lives.
 | WebView2 installed offline | Done — `bundle.windows.webviewInstallMode: offlineInstaller` |
 | Package manifest | Done — `src-tauri/msix/AppxManifest.xml` |
 | Packaging script | Done — `scripts/build-msix.ps1` |
-| Identity values | **Needed** — copy from Partner Center into `identity.json` |
+| Identity values | Done — held in repository variables, not committed |
+| Package built automatically | Done — the Windows CI job emits `windows-store-msix` |
 | Local test on Windows | **Needed** — `-Register` mode, no certificate |
 | Submit | **Needed** — upload the `.msix` to Partner Center |
 
@@ -69,6 +70,37 @@ when re-signing, so copy the string verbatim.
 
 `identity.json` is gitignored because it is account-specific. The repository is
 public, so keep it out of commits.
+
+### Where CI gets them
+
+The committed workflow cannot read a gitignored file, so the Windows job takes
+the identity from repository **variables** and writes `identity.json` itself:
+
+| Variable | Value |
+| --- | --- |
+| `MSIX_IDENTITY_NAME` | `LeveilleApps.TheRecipeApp` |
+| `MSIX_IDENTITY_PUBLISHER` | `CN=9E4DEF0B-55B5-49CC-9745-FEB62EB67D55` |
+| `MSIX_PUBLISHER_DISPLAY_NAME` | `Leveille Apps` |
+
+These are already set. Variables rather than secrets is deliberate: they are
+not confidential, and variables are readable back, which makes a typo
+diagnosable. A package built with a wrong publisher fails at submission, not at
+build time, so being able to compare the values against Partner Center matters.
+
+If the variables are absent, the step warns and skips rather than failing, so a
+fork or a fresh clone still builds.
+
+### Getting the package from CI
+
+Every Windows build attaches it as its own artifact, separate from the 418 MB
+installer bundle:
+
+```
+windows-store-msix   →   TheRecipeApp_0.1.0.0_x64.msix
+```
+
+Download it from the run's summary page and upload it to Partner Center. This
+is the normal route; the PowerShell script is only needed for local testing.
 
 ## Local testing: no certificate needed
 
