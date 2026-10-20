@@ -161,7 +161,10 @@ if ($manifest -match "\{\{[A-Z_]+\}\}") {
   Write-Error "AppxManifest.xml still contains unsubstituted placeholders."
 }
 
-Set-Content -Path (Join-Path $staging "AppxManifest.xml") -Value $manifest -Encoding UTF8
+# Write without a BOM. PowerShell 5.1's "Set-Content -Encoding UTF8" emits one,
+# and MakeAppx rejects a manifest that does not start at byte zero.
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText((Join-Path $staging "AppxManifest.xml"), $manifest, $utf8NoBom)
 
 Write-Host "Manifest identity: $($identity.identityName) $quad"
 
