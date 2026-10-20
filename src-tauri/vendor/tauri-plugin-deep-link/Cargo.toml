@@ -1,0 +1,103 @@
+# A local copy of tauri-plugin-deep-link 2.6.2, taken from the published crate
+# and patched in one place.
+#
+# `rust-ini` 0.21.3 added two fields to `ini::ParseOption`, and this plugin
+# still builds that struct with only the original two, so the crate no longer
+# compiles. The affected code is `cfg(target_os = "linux")`, so macOS and
+# Windows build fine and only Linux fails — which is how it reached CI. There is
+# no newer stable 2.x to upgrade to (2.6.2 is the latest), and the one release
+# that still compiles, rust-ini 0.21.2, has been yanked, so it cannot be pinned.
+#
+# The only change from upstream is the `ParseOption` initialiser in
+# `src/lib.rs`, marked with a PATCH comment. Everything else is verbatim.
+# Delete this directory and the `[patch.crates-io]` entry in the root
+# Cargo.toml once upstream supports rust-ini 0.21.3.
+
+[package]
+edition = "2024"
+rust-version = "1.90"
+name = "tauri-plugin-deep-link"
+version = "2.6.2"
+authors = ["Tauri Programme within The Commons Conservancy"]
+build = "build.rs"
+links = "tauri-plugin-deep-link"
+description = "Set your Tauri application as the default handler for an URL"
+readme = "README.md"
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/tauri-apps/plugins-workspace"
+
+[package.metadata.platforms.support.windows]
+level = "full"
+notes = ""
+
+[package.metadata.platforms.support.linux]
+level = "full"
+notes = ""
+
+[package.metadata.platforms.support.macos]
+level = "partial"
+notes = "Deep links must be registered in config. Dynamic registration at runtime is not supported."
+
+[package.metadata.platforms.support.android]
+level = "partial"
+notes = "Deep links must be registered in config. Dynamic registration at runtime is not supported."
+
+[package.metadata.platforms.support.ios]
+level = "partial"
+notes = "Deep links must be registered in config. Dynamic registration at runtime is not supported."
+
+[lib]
+name = "tauri_plugin_deep_link"
+path = "src/lib.rs"
+
+[dependencies.serde]
+version = "1"
+features = ["derive"]
+
+[dependencies.serde_json]
+version = "1"
+
+[dependencies.tauri]
+version = "2.12"
+default-features = false
+
+[dependencies.tauri-utils]
+version = "2.10"
+
+[dependencies.thiserror]
+version = "2"
+
+[dependencies.tracing]
+version = "0.1"
+
+[dependencies.url]
+version = "2"
+
+[build-dependencies.serde]
+version = "1"
+features = ["derive"]
+
+[build-dependencies.serde_json]
+version = "1"
+
+[build-dependencies.tauri-plugin]
+version = "2.7.1"
+features = ["build"]
+
+[build-dependencies.tauri-utils]
+version = "2.10"
+
+[target.'cfg(target_os = "linux")'.dependencies.rust-ini]
+version = "0.21"
+
+[target.'cfg(target_os = "macos")'.build-dependencies.plist]
+version = "1"
+
+[target."cfg(windows)".dependencies.dunce]
+version = "1"
+
+[target."cfg(windows)".dependencies.windows-registry]
+version = "0.6"
+
+[target."cfg(windows)".dependencies.windows-result]
+version = "0.4"
