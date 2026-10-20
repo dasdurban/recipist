@@ -8,3 +8,4 @@ Terminal=false
 Categories={{categories}}
 Keywords=recipe;recipes;cooking;food;meal;kitchen;
 StartupNotify=true
+StartupWMClass={{exec}}
