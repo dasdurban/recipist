@@ -45,10 +45,33 @@ for installer in "$@"; do
   fi
 
   echo "== $(basename "$installer")"
-  echo "   $(( $(stat -f%z "$installer" 2>/dev/null || stat -c%s "$installer") / 1048576 )) MB"
+  size_mb=$(( $(stat -f%z "$installer" 2>/dev/null || stat -c%s "$installer") / 1048576 ))
+  echo "   $size_mb MB"
 
   # -a so binary content is scanned rather than skipped.
   strings -a "$installer" > /tmp/offline-check-strings.txt || true
+
+  # NSIS installers compress their payload, so the WebView2 markers are not
+  # visible in the file at all. For those, size is the reliable signal: the
+  # embedded runtime adds roughly 200 MB. A small installer cannot contain it.
+  is_nsis=0
+  if grep -q "Nullsoft.NSIS" /tmp/offline-check-strings.txt; then
+    is_nsis=1
+  fi
+
+  if [ "$is_nsis" -eq 1 ]; then
+    echo "   NSIS installer: payload is compressed, so checking size instead"
+    if [ "$size_mb" -lt 50 ]; then
+      echo "   RESULT: FAIL — ${size_mb}MB is far too small to embed WebView2,"
+      echo "           so setup downloads it. The Store will reject this."
+      fail=1
+    else
+      echo "   RESULT: PASS — ${size_mb}MB is consistent with an embedded runtime"
+    fi
+    rm -f /tmp/offline-check-strings.txt
+    echo
+    continue
+  fi
 
   found_download=0
   for marker in "${DOWNLOAD_MARKERS[@]}"; do
