@@ -172,6 +172,36 @@ The `runFullTrust` capability is a restricted capability, so the submission has
 to declare it and probably justify it. For a packaged Win32 app this is
 routine: the app is a normal desktop program, not a sandboxed UWP app.
 
+## Screenshots
+
+Still outstanding, and the last listing asset with no substitute for real
+images. Partner Center requires at least one and recommends four.
+
+Rules: PNG or JPEG, at least **1366x768**, at most 3840x2160, up to 10 images,
+and no more than 50 MB each.
+
+Capture the four views below from a normal window, not a phone-shaped one:
+
+1. **Home** — the recipe grid, with the health badges visible in the card meta
+   row. This is the shot that reads as the product.
+2. **A recipe open** — the preview pane, showing ingredients and steps.
+3. **Event planner** — an event with a few recipes attached, so the planning
+   idea is obvious.
+4. **Shopping list** — with some items checked, showing "everything needed".
+
+Two things worth doing first, both of which make the shots more convincing:
+
+- **Populate real-looking recipes.** One example recipe is thin; the grid shot
+  is the one people judge the app by. Import a handful of genuine pages with
+  the importer, which also demonstrates that it works.
+- **Avoid personal data.** Screenshots are public, so do not use a list that
+  shows real names, addresses or delivery details.
+
+Note that the desktop build stores everything in IndexedDB locally, so the app
+can be filled with sample content without any of it leaving the machine.
+
+`scripts/capture-screenshots.sh` records the filenames and constraints.
+
 ## Data location, and upgrading from the MSI
 
 MSIX installs into a container, so `%LOCALAPPDATA%` is redirected to the

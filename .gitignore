@@ -20,3 +20,6 @@ src-tauri/target
 
 # Microsoft Store identity (account-specific, not a secret but not shareable)
 src-tauri/msix/identity.json
+
+# Generated store screenshots
+store-screenshots/
