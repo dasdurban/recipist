@@ -13,10 +13,28 @@ unaffected by everything here.
 | Privacy manifest | ✅ `src-tauri/PrivacyInfo.xcprivacy` |
 | Signing + packaging config | ✅ `src-tauri/tauri.mas.conf.json` |
 | Build script | ✅ `scripts/build-mas.sh` |
+| Privacy policy | ✅ Written, and live |
 | **Xcode 26 or later installed** | ❌ **Blocked — see below** |
 | Data migration for the sandbox container | ❌ **Not started — see below** |
-| Privacy policy URL | ❌ Not written |
 | App Store Connect listing | ❌ Not started |
+
+## Privacy policy
+
+Published via GitHub Pages from `docs/`:
+
+**https://dasdurban.github.io/recipist/privacy-policy.html**
+
+Contact address shown on the listing: `dasleveille@gmail.com`.
+
+Source of truth is `docs/privacy-policy.md` and `docs/privacy-policy.html` in this
+repo. Editing either file on `main` redeploys the page automatically
+(`.github/workflows/pages.yml`).
+
+> **Dependency:** GitHub Pages requires a **public** repository on the free plan.
+> If this repo is made private again, the URL stops serving and the workflow
+> fails at `configure-pages`. Apple requires a policy **URL** (Microsoft also
+> accepts pasted text), so if that happens, host `docs/` elsewhere
+> (Cloudflare Pages, Netlify) or upgrade the plan.
 
 ## Blocker 1: Xcode
 
