@@ -47,10 +47,14 @@
     "linux": {
       "deb": {
         "desktopTemplate": "linux/app.desktop",
-        "section": "utils"
+        "section": "utils",
+        "postInstallScript": "linux/postinst.sh",
+        "postRemoveScript": "linux/postrm.sh"
       },
       "rpm": {
-        "desktopTemplate": "linux/app.desktop"
+        "desktopTemplate": "linux/app.desktop",
+        "postInstallScript": "linux/postinst.sh",
+        "postRemoveScript": "linux/postrm.sh"
       }
     },
     "windows": {
