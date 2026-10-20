@@ -95,8 +95,11 @@ Copy-Item $binary (Join-Path $staging "recipist.exe")
 # Everything the app needs to run sits next to the exe. The release bundle has
 # no side-by-side DLLs of its own (WebView2 is a system component), but copy
 # any that appear so a future dependency is not silently left behind.
+#
+# Debug symbols are deliberately excluded. They serve no purpose in a shipped
+# package, and a release build does emit a .pdb next to the binary.
 Get-ChildItem (Split-Path $binary) -File |
-  Where-Object { $_.Extension -in ".dll", ".json", ".pdb" -and $_.Name -ne "recipist.exe" } |
+  Where-Object { $_.Extension -in ".dll", ".json" -and $_.Name -ne "recipist.exe" } |
   ForEach-Object { Copy-Item $_.FullName $staging }
 
 # --- assets ----------------------------------------------------------------
