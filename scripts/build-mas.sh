@@ -40,11 +40,58 @@ if ! xcode-select -p 2>/dev/null | grep -q "Xcode.app"; then
 fi
 echo "  Xcode: $(xcodebuild -version | head -1)"
 
+# The App Store requires uploads to be built with a recent SDK. Checking the
+# version here turns a rejection at upload time into a message before the build.
+XCODE_MAJOR="$(xcodebuild -version 2>/dev/null | head -1 | sed -E 's/Xcode[[:space:]]+([0-9]+).*/\1/')"
+if [ -n "$XCODE_MAJOR" ] && [ "$XCODE_MAJOR" -lt 26 ] 2>/dev/null; then
+  echo "  warning: Xcode $XCODE_MAJOR detected. App Store Connect currently expects"
+  echo "           builds from Xcode 26 or later; older SDKs are rejected at upload."
+fi
+
 for f in src-tauri/entitlements.mas.plist src-tauri/PrivacyInfo.xcprivacy src-tauri/tauri.mas.conf.json; do
   [ -f "$f" ] || die "missing required file: $f"
 done
 echo "  entitlements:     adopted"
 echo "  privacy manifest: adopted"
+
+# Validate the plists now. A malformed privacy manifest is rejected by App
+# Store Connect with an opaque error, so it is worth catching locally.
+plutil -lint src-tauri/entitlements.mas.plist >/dev/null || die "entitlements.mas.plist is not a valid plist"
+plutil -lint src-tauri/PrivacyInfo.xcprivacy >/dev/null || die "PrivacyInfo.xcprivacy is not a valid plist"
+echo "  plists valid"
+
+# The bundle identifier in tauri.conf.json must match the provisioning profile
+# and the App Store Connect record, or the upload fails.
+BUNDLE_ID="$(node -e "process.stdout.write(require('./src-tauri/tauri.conf.json').identifier)" 2>/dev/null || true)"
+echo "  bundle identifier: ${BUNDLE_ID:-(could not read)}"
+
+# Level the privacy manifest against the binary. A required-reason category
+# declared for an API the app never calls invites a review question, and a
+# category that IS called but is undeclared is an automatic rejection
+# (ITMS-91053). Both are cheap to check here.
+PRIVACY_CHECK="$(node -e '
+const fs = require("fs");
+const path = "src-tauri/PrivacyInfo.xcprivacy";
+const text = fs.readFileSync(path, "utf8");
+const declared = [];
+if (text.includes("NSPrivacyAccessedAPICategoryFileTimestamp")) declared.push("FileTimestamp");
+if (text.includes("NSPrivacyAccessedAPICategoryDiskSpace")) declared.push("DiskSpace");
+if (text.includes("NSPrivacyAccessedAPICategoryUserDefaults")) declared.push("UserDefaults");
+if (text.includes("NSPrivacyAccessedAPICategorySystemBootTime")) declared.push("SystemBootTime");
+if (text.includes("NSPrivacyAccessedAPICategoryActiveKeyboards")) declared.push("ActiveKeyboards");
+process.stdout.write(declared.join(",") || "none");
+' 2>/dev/null || echo "unknown")"
+echo "  privacy categories declared: $PRIVACY_CHECK"
+
+# Check that the JS bundle shipped in dist/ does not call a disk-space API,
+# since the manifest no longer declares that category.
+if [ -d dist ]; then
+  if grep -rqE "navigator\.storage\.estimate|storage\.estimate\(\)" dist 2>/dev/null; then
+    echo "  warning: dist/ calls navigator.storage.estimate(), which is a disk-space"
+    echo "           API. Re-add NSPrivacyAccessedAPICategoryDiskSpace to the privacy"
+    echo "           manifest, or the upload is rejected under ITMS-91053."
+  fi
+fi
 
 # Verify the signing identity exists, and let the user pick it if it was not
 # supplied. This avoids the "errSecInternalComponent" signing failures that are
@@ -118,6 +165,33 @@ if [ "$SANDBOX" = "true" ]; then
 else
   die "app-sandbox did not end up in the signed entitlements (got: $SANDBOX).
      Guideline 2.4.5 requires it. Check entitlements.mas.plist."
+fi
+
+# Report the signing authority, so the certificate that actually signed the
+# bundle is visible rather than assumed. An App Store upload needs an
+# "Apple Distribution" certificate; a "Developer ID Application" one is for
+# direct download and is rejected by the Store.
+AUTHORITY="$(codesign -dv --verbose=4 "$APP" 2>&1 | sed -n 's/^Authority=//p' | head -1)"
+echo "  signed by: ${AUTHORITY:-unknown}"
+
+case "$AUTHORITY" in
+  *"Apple Distribution"*|*"3rd Party Mac Developer Application"*)
+    ;;
+  "Developer ID Application"*)
+    die "the bundle is signed with a Developer ID certificate, which the Mac App
+     Store rejects. Use an 'Apple Distribution' identity:
+       SIGN_IDENTITY='Apple Distribution: Your Name (TEAMID)' $0"
+    ;;
+esac
+
+# The provisioning profile is only required when the app uses capabilities
+# beyond the defaults. Report whether one is embedded rather than failing, so
+# the script works for a plain sandboxed app and flags the case that needs one.
+if [ -f "$APP/Contents/embedded.provisionprofile" ]; then
+  echo "  provisioning profile: embedded"
+else
+  echo "  provisioning profile: none"
+  echo "    (fine unless the app enables iCloud, App Groups, or push, which need one)"
 fi
 
 cat <<EOF

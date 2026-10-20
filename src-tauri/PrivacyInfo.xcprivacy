@@ -165,19 +165,21 @@
     </dict>
 
     <!--
-      Disk space APIs.
+      Disk space: deliberately NOT declared.
 
-      Used only to report a friendly error when local storage is full, and to
-      check there is room before writing a backup.
+      A previous revision declared E174.1 here on the assumption that the app
+      checks free space before writing a backup. It does not. No disk-space API
+      appears anywhere in the source, and `nm -u` on the release binary imports
+      none of statfs, statvfs, getattrlist or volumeAvailableCapacity.
+
+      E174.1 additionally requires that "the app must behave differently based
+      on disk space in a way that is observable to users", which nothing here
+      does. Declaring a category the binary never calls invites a review
+      question with no good answer, so the accurate manifest omits it.
+
+      Re-add only if a genuine disk-space check is introduced, and then only
+      with a user-visible reaction to low space.
     -->
-    <dict>
-      <key>NSPrivacyAccessedAPIType</key>
-      <string>NSPrivacyAccessedAPICategoryDiskSpace</string>
-      <key>NSPrivacyAccessedAPITypeReasons</key>
-      <array>
-        <string>E174.1</string>
-      </array>
-    </dict>
 
   </array>
 
