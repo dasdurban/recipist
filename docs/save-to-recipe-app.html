@@ -85,6 +85,13 @@ to type a URL.</p>
     its address.
   </li>
   <li>
+    <strong>On Linux, open The Recipe App once first.</strong> Linux registers
+    the link the first time the app runs, not when it is installed, so until the
+    app has been opened at least once the browser has nothing to hand the recipe
+    to. Skip this on a Mac or on Windows, where the link is registered when the
+    app is installed.
+  </li>
+  <li>
     <strong>Test it.</strong> Open any recipe page, then click the bookmark.
     Your browser will ask whether to open The Recipe App — choose
     <em>Always allow</em> so it never asks again.
@@ -117,6 +124,13 @@ same way it does when you paste a link into the Import box.</p>
 <p>Check that The Recipe App is installed (in <code>/Applications</code> on a
 Mac, or via the installer on Windows and Linux). Opening a link can only launch
 an app the operating system already knows about.</p>
+
+<p><strong>On Linux, open The Recipe App once before using the button for the
+first time.</strong> Linux records which app handles <code>recipist://</code>
+when the app first runs rather than at install time, so a freshly installed app
+hasn't claimed the link yet. Once you have opened it, the button works from then
+on, including when the app is closed; if you move the app afterwards, open it
+once more so the link is pointed at the new location.</p>
 
 <p>If the button does nothing at all, the bookmark's address was probably edited
 when it was renamed. Delete it and drag a fresh one from this page.</p>

@@ -258,6 +258,13 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
                     Your browser will ask once whether to allow it; choose
                     “Always allow”. Available on the desktop app.
                   </p>
+                  {/Linux/i.test(navigator.userAgent) && (
+                    <p className="text-xs text-content-muted mt-1.5 leading-relaxed">
+                      On Linux, launch the app once before using the button —
+                      the link is registered when the app first runs rather than
+                      when it is installed.
+                    </p>
+                  )}
                 </Section>
 
                 <Section title="Default category color" subtitle="Used for new categories you create">
