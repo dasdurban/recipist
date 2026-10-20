@@ -7,6 +7,7 @@ import type {
   EventShoppingItem,
   EventTodo,
   Recipe,
+  RecipeOrder,
   Settings,
   ShoppingList,
 } from '../types'
@@ -25,6 +26,7 @@ export class RecipistDB extends Dexie {
   eventShoppingItems!: Table<EventShoppingItem, string>
   eventIngredientChecks!: Table<EventIngredientCheck, string>
   eventTodos!: Table<EventTodo, string>
+  recipeOrders!: Table<RecipeOrder, string>
 
   constructor() {
     super('recipist')
@@ -79,6 +81,21 @@ export class RecipistDB extends Dexie {
             delete recipe.tags
           }),
       )
+    // Hand-placed recipe positions. Kept in their own table rather than on the
+    // recipe itself, because a position only means something inside one view
+    // and the homepage, Favorites and every category each have their own.
+    this.version(5).stores({
+      categories: 'id, name, order, createdAt',
+      recipes: 'id, *categoryIds, title, updatedAt, favorite',
+      settings: 'id',
+      shoppingLists: 'id, recipeId, createdAt, updatedAt',
+      events: 'id, name, createdAt',
+      eventRecipes: 'id, eventId, recipeId, [eventId+recipeId]',
+      eventShoppingItems: 'id, eventId, manual, checked, [eventId+key]',
+      eventIngredientChecks: 'id, eventId, [eventId+key]',
+      eventTodos: 'id, eventId, checked',
+      recipeOrders: 'id, viewId, recipeId, [viewId+recipeId], [viewId+position]',
+    })
   }
 }
 

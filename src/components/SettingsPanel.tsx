@@ -5,6 +5,7 @@ import {
   CloudUpload,
   Database,
   Download,
+  ExternalLink,
   FolderOpen,
   HardDriveDownload,
   Loader2,
@@ -23,7 +24,7 @@ import { useApp } from '../store/useApp'
 import { Modal } from './ui/Modal'
 import { Confirm } from './ui/Confirm'
 import { createBackup, fileNameFor, parseBackupText } from '../lib/backup'
-import { isTauri, openBackupFile, revealInFolder, saveBackupToFile } from '../lib/native'
+import { isTauri, openBackupFile, openExternal, revealInFolder, saveBackupToFile } from '../lib/native'
 import { getAdapter } from '../lib/sync'
 import { COLOR_LABELS, COLOR_NAMES, PASTEL_COLOR_NAMES, colorFor } from '../lib/colors'
 
@@ -230,6 +231,32 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
                     only render in a browser are loaded in the background. This proxy is the fallback (and is
                     required in the web build, where browsers block direct page requests). Leave the default,
                     or point it at your own server.
+                  </p>
+                </Section>
+
+                <Section
+                  title="Browser button"
+                  subtitle="Send a recipe to the app without leaving the page"
+                >
+                  <p className="text-xs text-content-muted leading-relaxed mb-3">
+                    Add a “Save to Recipe App” button to your bookmarks bar. On any
+                    recipe page, one click opens the app with that recipe already
+                    imported.
+                  </p>
+                  <button
+                    className="btn-soft"
+                    onClick={() =>
+                      void openExternal(
+                        'https://dasdurban.github.io/recipist/save-to-recipe-app.html',
+                      )
+                    }
+                  >
+                    <ExternalLink size={15} /> Set up the browser button
+                  </button>
+                  <p className="text-xs text-content-muted mt-1.5 leading-relaxed">
+                    Opens a page with the button to drag to your bookmarks bar.
+                    Your browser will ask once whether to allow it; choose
+                    “Always allow”. Available on the desktop app.
                   </p>
                 </Section>
 

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Save to Recipe App — The Recipe App</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    max-width: 46rem;
+    margin: 0 auto;
+    padding: 2.5rem 1.25rem 5rem;
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  h1 { font-size: 1.7rem; margin-bottom: .25rem; }
+  h2 { font-size: 1.15rem; margin-top: 2.25rem; }
+  .updated { color: #666; font-size: .9rem; margin-top: 0; }
+  code { font-size: .9em; }
+  hr { border: none; border-top: 1px solid #ddd; margin: 2.5rem 0; }
+  .bookmarklet {
+    display: inline-block;
+    padding: .7rem 1.15rem;
+    border-radius: 10px;
+    background: #dc2626;
+    color: #fff !important;
+    font-weight: 600;
+    text-decoration: none;
+    border: 2px dashed rgba(255,255,255,.65);
+    cursor: grab;
+  }
+  .bookmarklet:active { cursor: grabbing; }
+  .bookmarklet-target {
+    margin: 1.5rem 0;
+    padding: 1.25rem;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    text-align: center;
+  }
+  .steps li { margin-bottom: .9rem; }
+  .note {
+    margin: 1.25rem 0;
+    padding: .9rem 1.1rem;
+    border-left: 3px solid #dc2626;
+    background: rgba(220,38,38,.06);
+    border-radius: 0 8px 8px 0;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #1a1a1a; color: #e8e8e8; }
+    .updated { color: #aaa; }
+    hr { border-color: #3a3a3a; }
+    .bookmarklet-target { border-color: #3a3a3a; }
+    code { background: #2a2a2a; padding: .1em .35em; border-radius: 4px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Save to Recipe App</h1>
+<p class="updated">Add a button to your browser that sends any recipe page
+straight to The Recipe App.</p>
+
+<p>Once set up, you can be reading a recipe on any cooking site and send it to
+The Recipe App in a single click — no copying, no pasting, no switching windows
+to type a URL.</p>
+
+<div class="bookmarklet-target">
+  <p style="margin-top:0"><strong>Drag this button to your bookmarks bar:</strong></p>
+  <a class="bookmarklet" id="bm" href="#">Save to Recipe App</a>
+  <p style="margin-bottom:0;font-size:.9em;color:#666" id="hint">
+    Drag it up to the bar under your address bar. Don't click it yet —
+    dragging is what installs it.
+  </p>
+</div>
+
+<h2>Setting it up</h2>
+<ol class="steps">
+  <li>
+    <strong>Show your bookmarks bar</strong> if it isn't visible. In Safari,
+    Chrome and Edge press <code>⌘⇧B</code> on a Mac or <code>Ctrl⇧B</code> on
+    Windows. In Firefox press <code>⌘⇧B</code> / <code>Ctrl⇧B</code> too.
+  </li>
+  <li>
+    <strong>Drag the red button above onto that bar.</strong> A new bookmark
+    appears. You can rename it afterwards (right-click → Rename) but don't edit
+    its address.
+  </li>
+  <li>
+    <strong>Test it.</strong> Open any recipe page, then click the bookmark.
+    Your browser will ask whether to open The Recipe App — choose
+    <em>Always allow</em> so it never asks again.
+  </li>
+</ol>
+
+<p>That's it. From then on, one click on the bookmark sends the recipe you're
+looking at into the app, which imports it and shows it to you.</p>
+
+<div class="note">
+  <strong>The first click always asks.</strong> Your browser has to confirm
+  before letting a website open another app; this is a security feature, not a
+  fault, and "Always allow" settles it permanently.
+</div>
+
+<h2>If you use Safari</h2>
+<p>Safari asks for confirmation every time and cannot be told to remember. If
+that becomes tiresome, Chrome, Edge and Firefox all have an "Always allow"
+option on the first prompt.</p>
+
+<h2>What the button actually does</h2>
+<p>It reads the address of the page you are on and asks the operating system to
+open <code>recipist://import?url=…</code>. That link only opens The Recipe App,
+and the app only accepts <code>http</code> and <code>https</code> addresses, so
+the button cannot be used to run anything or reach anything on your computer.
+Nothing about the page is sent anywhere; the app fetches the recipe itself, the
+same way it does when you paste a link into the Import box.</p>
+
+<h2>If the app doesn't open</h2>
+<p>Check that The Recipe App is installed (in <code>/Applications</code> on a
+Mac, or via the installer on Windows and Linux). Opening a link can only launch
+an app the operating system already knows about.</p>
+
+<p>If the button does nothing at all, the bookmark's address was probably edited
+when it was renamed. Delete it and drag a fresh one from this page.</p>
+
+<hr>
+<p><a href="./">← Back to The Recipe App</a> ·
+<a href="privacy-policy.html">Privacy policy</a></p>
+
+<script>
+  // The bookmarklet itself. Built here rather than pasted into the href by hand
+  // so the encoding is done by the same code path the browser will run.
+  //
+  // It only ever reads location.href and hands it to the OS. A recipe site can
+  // never influence which URL is sent.
+  (function () {
+    var source =
+      "javascript:(function(){" +
+      "var u=location.href;" +
+      "if(!/^https?:/i.test(u)){alert('This page is not a web address, so there is no recipe to send.');return;}" +
+      "location.href='recipist://import?url='+encodeURIComponent(u);" +
+      "})()";
+    var link = document.getElementById('bm');
+    link.setAttribute('href', source);
+    // Clicking (rather than dragging) would run the bookmarklet on this page,
+    // which has no recipe. Point that out instead of appearing broken.
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      document.getElementById('hint').textContent =
+        'Drag it to your bookmarks bar rather than clicking it here — this page has no recipe to send.';
+    });
+  })();
+</script>
+
+</body>
+</html>

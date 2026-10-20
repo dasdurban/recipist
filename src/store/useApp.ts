@@ -9,6 +9,7 @@ import type {
   EventShoppingItem,
   EventTodo,
   Recipe,
+  RecipeOrder,
   ShoppingList,
   ShoppingListItem,
   Settings,
@@ -17,6 +18,7 @@ import type {
 import { db, DEFAULT_SETTINGS, loadSettings, saveSettings, uid } from '../db/database'
 import { pickColorForName } from '../lib/colors'
 import { combineIngredients } from '../lib/combineIngredients'
+import { ordersForView } from '../lib/recipeOrder'
 import { remoteImageToDataUrl } from '../lib/ocr'
 import { playTimerDing } from '../lib/timerSound'
 import { broadcastTimer, type TimerSnapshot } from '../lib/timerSync'
@@ -32,6 +34,8 @@ interface AppState {
   ready: boolean
   categories: Category[]
   recipes: Recipe[]
+  /** Hand-placed positions, per view. Most recipes have no row here. */
+  recipeOrders: RecipeOrder[]
   shoppingLists: ShoppingList[]
   settings: Settings
 
@@ -89,6 +93,16 @@ interface AppState {
   saveRecipe: (recipe: Recipe) => Promise<void>
   deleteRecipe: (id: string) => Promise<void>
   toggleFavorite: (id: string) => Promise<void>
+  /**
+   * Records the arrangement of one view.
+   *
+   * `orderedIds` is the full visible order, not just the recipe that moved:
+   * pinning every visible recipe is what stops the rest of the list reshuffling
+   * underneath the one the user placed.
+   */
+  reorderRecipes: (viewId: string, orderedIds: string[]) => Promise<void>
+  /** Clears every hand-placed position in one view, back to newest-first. */
+  resetRecipeOrder: (viewId: string) => Promise<void>
   /** Copies every photo that still lives on a website into the app itself. */
   savePhotosLocally: () => Promise<void>
 
@@ -247,6 +261,7 @@ export const useApp = create<AppState>((set, get) => ({
   ready: false,
   categories: [],
   recipes: [],
+  recipeOrders: [],
   shoppingLists: [],
   settings: DEFAULT_SETTINGS,
 
@@ -271,11 +286,12 @@ export const useApp = create<AppState>((set, get) => ({
   toasts: [],
 
   async init() {
-    const [settings, categories, recipes, lists, events, eventRecipes, eventItems, eventChecks, eventTodos] =
+    const [settings, categories, recipes, orders, lists, events, eventRecipes, eventItems, eventChecks, eventTodos] =
       await Promise.all([
         loadSettings(),
         db.categories.toArray(),
         db.recipes.toArray(),
+        db.recipeOrders.toArray(),
         db.shoppingLists.toArray(),
         db.events.toArray(),
         db.eventRecipes.toArray(),
@@ -287,6 +303,7 @@ export const useApp = create<AppState>((set, get) => ({
       settings,
       categories: sortCategories(categories),
       recipes: recipes.sort((a, b) => b.updatedAt - a.updatedAt),
+      recipeOrders: orders,
       shoppingLists: sortLists(lists),
       events: events.sort((a, b) => b.createdAt - a.createdAt),
       eventRecipes,
@@ -299,10 +316,11 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   async refresh() {
-    const [categories, recipes, lists, events, eventRecipes, eventItems, eventChecks, eventTodos] =
+    const [categories, recipes, orders, lists, events, eventRecipes, eventItems, eventChecks, eventTodos] =
       await Promise.all([
         db.categories.toArray(),
         db.recipes.toArray(),
+        db.recipeOrders.toArray(),
         db.shoppingLists.toArray(),
         db.events.toArray(),
         db.eventRecipes.toArray(),
@@ -313,6 +331,7 @@ export const useApp = create<AppState>((set, get) => ({
     set({
       categories: sortCategories(categories),
       recipes: recipes.sort((a, b) => b.updatedAt - a.updatedAt),
+      recipeOrders: orders,
       shoppingLists: sortLists(lists),
       events: events.sort((a, b) => b.createdAt - a.createdAt),
       eventRecipes,
@@ -432,6 +451,25 @@ export const useApp = create<AppState>((set, get) => ({
   async saveRecipe(recipe) {
     const next = { ...recipe, updatedAt: Date.now() }
     await db.recipes.put(next)
+    await get().refresh()
+  },
+
+  async reorderRecipes(viewId, orderedIds) {
+    const byId = new Map(get().recipes.map((recipe) => [recipe.id, recipe]))
+    const visible = orderedIds
+      .map((id) => byId.get(id))
+      .filter((recipe): recipe is Recipe => Boolean(recipe))
+    if (visible.length === 0) return
+
+    const rows = ordersForView(visible, get().recipeOrders, viewId)
+    await db.transaction('rw', db.recipeOrders, async () => {
+      await db.recipeOrders.bulkPut(rows)
+    })
+    await get().refresh()
+  },
+
+  async resetRecipeOrder(viewId) {
+    await db.recipeOrders.where('viewId').equals(viewId).delete()
     await get().refresh()
   },
 

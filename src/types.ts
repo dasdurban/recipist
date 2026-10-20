@@ -135,6 +135,25 @@ export interface EventTodo {
   createdAt: number
 }
 
+/**
+ * A saved position for one recipe inside one view.
+ *
+ * Ordering is per view rather than per recipe: the homepage, Favorites and each
+ * category keep their own arrangement, so pinning a recipe to the top of
+ * "Desserts" leaves the homepage alone. Positions are sparse — a recipe only
+ * gets a row once the user has actually dragged it somewhere.
+ */
+export interface RecipeOrder {
+  /** `${viewId}:${recipeId}`, the table's primary key. */
+  id: string
+  /** `all`, `favorites`, or a category id. */
+  viewId: string
+  recipeId: string
+  /** A fractional index: recipes sort ascending, and gaps are free. */
+  position: number
+  updatedAt: number
+}
+
 export interface Recipe {
   id: string
   /**

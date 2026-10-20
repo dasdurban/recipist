@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Pencil, Plus, Search, UtensilsCrossed } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { PointerEvent as ReactPointerEvent } from 'react'
+import clsx from 'clsx'
+import { GripVertical, Pencil, Plus, RotateCcw, Search, UtensilsCrossed } from 'lucide-react'
 import type { Category } from '../types'
 import { useApp } from '../store/useApp'
 import { allRecipesColor, colorFor, favoritesColor, prefersLightText } from '../lib/colors'
+import { ALL_RECIPES_VIEW, FAVORITES_VIEW, sortRecipesForView } from '../lib/recipeOrder'
 import { ColorPicker } from './ui/ColorPicker'
 import { Modal } from './ui/Modal'
 import { RecipeCard } from './RecipeCard'
@@ -22,10 +25,32 @@ export function CategoryPage({
   onImport: () => void
 }) {
   const recipes = useApp((s) => s.recipes)
+  const recipeOrders = useApp((s) => s.recipeOrders)
+  const reorderRecipes = useApp((s) => s.reorderRecipes)
+  const resetRecipeOrder = useApp((s) => s.resetRecipeOrder)
   const settings = useApp((s) => s.settings)
   const updateSettings = useApp((s) => s.updateSettings)
   const [query, setQuery] = useState('')
   const [colorOpen, setColorOpen] = useState(false)
+
+  // Drag state. Mirrors the sidebar's category reorder: a press is tracked, the
+  // drag activates once the pointer has moved, and the grid reorders live.
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [previewIds, setPreviewIds] = useState<string[] | null>(null)
+  const previewRef = useRef<string[] | null>(null)
+  const suppressClickRef = useRef(false)
+  const dragRef = useRef<{
+    pointerId: number
+    id: string
+    startX: number
+    startY: number
+    tile: HTMLElement
+    active: boolean
+    order: string[]
+  } | null>(null)
+
+  /** Which stored arrangement this grid is showing. */
+  const viewId = favoritesOnly ? FAVORITES_VIEW : category ? category.id : ALL_RECIPES_VIEW
 
   useEffect(() => {
     setQuery('')
@@ -55,8 +80,96 @@ export function CategoryPage({
             r.ingredients.some((i) => i.name.toLowerCase().includes(q)),
         )
       : inCategory
-    return searched
-  }, [recipes, category, favoritesOnly, query])
+
+    // Hand-placed positions apply to the unfiltered view. While the user is
+    // searching, results stay in the app's usual order — a saved position says
+    // nothing useful about which search hit matters more.
+    if (q) return searched
+    const ordered = sortRecipesForView(searched, recipeOrders, viewId)
+    if (!previewIds) return ordered
+    // A live preview while dragging, so tiles slide out of the way.
+    const byId = new Map(ordered.map((r) => [r.id, r]))
+    return previewIds.flatMap((id) => {
+      const recipe = byId.get(id)
+      return recipe ? [recipe] : []
+    })
+  }, [recipes, recipeOrders, viewId, category, favoritesOnly, query, previewIds])
+
+  const hasCustomOrder = useMemo(
+    () => recipeOrders.some((order) => order.viewId === viewId),
+    [recipeOrders, viewId],
+  )
+
+  /** Starts tracking a press; the drag only activates once the pointer moves. */
+  function beginDrag(e: ReactPointerEvent<HTMLElement>, id: string) {
+    if (e.button !== 0) return
+    const tile = (e.currentTarget as HTMLElement).closest('[data-recipe-id]') as HTMLElement | null
+    if (!tile) return
+    dragRef.current = {
+      pointerId: e.pointerId,
+      id,
+      startX: e.clientX,
+      startY: e.clientY,
+      tile,
+      active: false,
+      order: shown.map((recipe) => recipe.id),
+    }
+  }
+
+  function moveDrag(e: ReactPointerEvent<HTMLElement>) {
+    const drag = dragRef.current
+    if (!drag || e.pointerId !== drag.pointerId) return
+
+    if (!drag.active) {
+      if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 5) return
+      drag.active = true
+      previewRef.current = drag.order
+      setPreviewIds(drag.order)
+      setDragId(drag.id)
+      try {
+        drag.tile.setPointerCapture(e.pointerId)
+      } catch {
+        // pointer capture is only a convenience; dragging still works without it
+      }
+      window.getSelection()?.removeAllRanges()
+    }
+
+    const target = (
+      document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
+    )?.closest('[data-recipe-id]') as HTMLElement | null
+    const overId = target?.dataset.recipeId
+    if (!overId || overId === drag.id) return
+
+    const ids = previewRef.current ?? drag.order
+    const from = ids.indexOf(drag.id)
+    const to = ids.indexOf(overId)
+    if (from < 0 || to < 0 || from === to) return
+    const next = [...ids]
+    next.splice(from, 1)
+    next.splice(to, 0, drag.id)
+    previewRef.current = next
+    setPreviewIds(next)
+  }
+
+  function finishDrag(e: ReactPointerEvent<HTMLElement>, commit: boolean) {
+    const drag = dragRef.current
+    if (!drag || e.pointerId !== drag.pointerId) return
+    dragRef.current = null
+    if (!drag.active) return
+
+    const ids = previewRef.current ?? drag.order
+    previewRef.current = null
+    setPreviewIds(null)
+    setDragId(null)
+    // A drag ends with a click; don't let it also open the recipe.
+    suppressClickRef.current = true
+    window.setTimeout(() => {
+      suppressClickRef.current = false
+    }, 0)
+
+    if (!commit) return
+    void reorderRecipes(viewId, ids)
+  }
 
   return (
     <div className="px-4 sm:px-6 py-5 max-w-6xl mx-auto w-full">
@@ -129,14 +242,25 @@ export function CategoryPage({
         </div>
       )}
 
-      <div className="relative mb-4">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-content-muted" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search these recipes…"
-          className="w-full pl-9"
-        />
+      <div className="relative mb-4 flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-content-muted" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search these recipes…"
+            className="w-full pl-9"
+          />
+        </div>
+        {hasCustomOrder && !query && (
+          <button
+            className="btn-ghost !py-1.5 text-xs text-content-muted shrink-0"
+            onClick={() => void resetRecipeOrder(viewId)}
+            title="Put these recipes back in automatically sorted order"
+          >
+            <RotateCcw size={13} /> Reset order
+          </button>
+        )}
       </div>
 
       {shown.length === 0 ? (
@@ -166,8 +290,61 @@ export function CategoryPage({
         </div>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-          {shown.map((recipe) => (
-            <RecipeCard key={recipe.id} recipe={recipe} color={hex} />
+          {shown.map((recipe, index) => (
+            <div
+              key={recipe.id}
+              data-recipe-id={recipe.id}
+              className={clsx(
+                'relative touch-pan-y select-none',
+                dragId === recipe.id && 'opacity-60 z-10',
+              )}
+              onPointerDown={(e) => beginDrag(e, recipe.id)}
+              onPointerMove={moveDrag}
+              onPointerUp={(e) => finishDrag(e, true)}
+              onPointerCancel={(e) => finishDrag(e, false)}
+              onClickCapture={(e) => {
+                // The click that ends a drag must not also open the recipe.
+                if (suppressClickRef.current) {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }
+              }}
+            >
+              {/* Purely a visual handle: the tile itself carries the drag
+                  handlers, so a press on the grip works without the event
+                  bubbling through a second set of handlers. */}
+              <span
+                aria-hidden
+                className="absolute top-2 right-2 z-10 rounded-lg p-1 opacity-0 group-hover:opacity-100 bg-black/35 text-white cursor-grab active:cursor-grabbing transition-opacity pointer-events-none"
+              >
+                <GripVertical size={15} />
+              </span>
+              {/* Dragging is the natural gesture, but it is mouse-only. This
+                  gives the same result from the keyboard, which is also the
+                  only way to reorder on a touch device without dragging. */}
+              {index > 0 && (
+                <button
+                  type="button"
+                  aria-label={`Move “${recipe.title}” to the top`}
+                  title="Move to the top"
+                  tabIndex={0}
+                  className="absolute bottom-2 right-2 z-10 rounded-lg px-2 py-1 text-xs opacity-0 group-hover:opacity-100 focus-visible:opacity-100 bg-black/35 text-white hover:bg-black/55 transition-opacity"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    const ids = shown.map((r) => r.id)
+                    const from = ids.indexOf(recipe.id)
+                    if (from < 1) return
+                    ids.splice(from, 1)
+                    ids.unshift(recipe.id)
+                    void reorderRecipes(viewId, ids)
+                  }}
+                >
+                  Move to top
+                </button>
+              )}
+              <RecipeCard recipe={recipe} color={hex} />
+            </div>
           ))}
         </div>
       )}
