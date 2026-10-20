@@ -96,3 +96,58 @@ jobs:
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/rpm/*.rpm
+
+      # The Microsoft Store package. Tauri cannot emit MSIX, so this stages the
+      # built app and runs MakeAppx over it (see scripts/build-msix.ps1).
+      #
+      # The Partner Center identity lives in a gitignored file, so it is passed
+      # in through repository variables rather than committed.
+      - name: Build the Microsoft Store package
+        if: matrix.artifact == 'windows-x64'
+        shell: pwsh
+        env:
+          MSIX_IDENTITY_NAME: ${{ vars.MSIX_IDENTITY_NAME }}
+          MSIX_IDENTITY_PUBLISHER: ${{ vars.MSIX_IDENTITY_PUBLISHER }}
+          MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.MSIX_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:MSIX_IDENTITY_NAME) -or
+              [string]::IsNullOrWhiteSpace($env:MSIX_IDENTITY_PUBLISHER)) {
+            Write-Host "::warning::MSIX identity variables are not set, so no Store package was built."
+            Write-Host "Set MSIX_IDENTITY_NAME, MSIX_IDENTITY_PUBLISHER and MSIX_PUBLISHER_DISPLAY_NAME"
+            Write-Host "under Settings > Secrets and variables > Actions > Variables."
+            exit 0
+          }
+
+          # build-msix.ps1 reads this file, so write it from the variables.
+          $identity = [ordered]@{
+            identityName          = $env:MSIX_IDENTITY_NAME
+            identityPublisher     = $env:MSIX_IDENTITY_PUBLISHER
+            publisherDisplayName  = $env:MSIX_PUBLISHER_DISPLAY_NAME
+          }
+          $identity | ConvertTo-Json | Set-Content src-tauri/msix/identity.json -Encoding UTF8
+
+          # Put MakeAppx on PATH from the Windows SDK. GitHub's windows-latest
+          # image has the SDK but not the Developer PowerShell environment.
+          $sdkBin = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Directory |
+            Where-Object { $_.Name -match '^10\.' } |
+            Sort-Object Name -Descending |
+            Select-Object -First 1 |
+            ForEach-Object { Join-Path $_.FullName "x64" }
+          if ($sdkBin -and (Test-Path (Join-Path $sdkBin "MakeAppx.exe"))) {
+            Add-Content $env:GITHUB_PATH $sdkBin
+            Write-Host "Using MakeAppx from $sdkBin"
+          } else {
+            Write-Host "::error::MakeAppx.exe not found in the Windows SDK."
+            exit 1
+          }
+
+          pwsh scripts/build-msix.ps1 -Package
+
+      - name: Upload the Store package
+        if: matrix.artifact == 'windows-x64' && hashFiles('src-tauri/target/msix/*.msix') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-store-msix
+          if-no-files-found: error
+          retention-days: 14
+          path: src-tauri/target/msix/*.msix
