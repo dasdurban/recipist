@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Privacy manifest — required for App Store submissions since 1 May 2024.
+
+  This file declares (a) the "required reason" APIs the app calls and why, and
+  (b) the data the app collects and whether it is linked to the user or used for
+  tracking.
+
+  Scope of this app, for the avoidance of doubt:
+    - No accounts, no sign-in, no user profile.
+    - No analytics, no telemetry, no crash reporting, no advertising, no tracking.
+    - All recipe data lives in a local IndexedDB store inside the app container.
+    - The only network traffic is user-initiated: importing a recipe from a URL
+      the user pastes, the OCR worker download, and optional sync to a storage
+      provider the user configures with their own credentials.
+-->
+<plist version="1.0">
+<dict>
+
+  <!--
+    ===================================================================
+    NSPrivacyTracking
+    ===================================================================
+    The app does no cross-app or cross-site tracking. No ad SDKs, no
+    fingerprinting, no IDFA/IDFV use.
+  -->
+  <key>NSPrivacyTracking</key>
+  <false/>
+
+  <!-- No tracking domains, because NSPrivacyTracking is false. -->
+  <key>NSPrivacyTrackingDomains</key>
+  <array/>
+
+  <!--
+    ===================================================================
+    NSPrivacyCollectedDataTypes
+    ===================================================================
+    `Linked` = false for everything, because nothing is tied to an identity:
+    there is no account to link it to.
+
+    `Tracking` = false for everything.
+
+    `Purposes` note that App Functionality and (where applicable) User
+    Consent are the only purposes. There is no Analytics, no Advertising.
+  -->
+  <key>NSPrivacyCollectedDataTypes</key>
+  <array>
+
+    <!--
+      Recipe content the user creates or imports.
+
+      Stored locally in IndexedDB. Leaves the device only when the user turns on
+      sync, and then only to the storage provider they configured themselves.
+      Not collected by the developer — the developer operates no server that
+      receives it. (The optional Lambda proxy is opt-in and passes the requested
+      page through without retaining it; if you enable it, it is still purely
+      user-initiated App Functionality.)
+
+      NOTE: "Other User Content" is the closest available type for user-authored
+      recipe records. This is intentional and correct for this app.
+    -->
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypeOtherUserContent</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+      </array>
+    </dict>
+
+    <!--
+      Photos the user imports for OCR (scanning a recipe off a page or card).
+
+      The image is read locally, passed to tesseract.js in-process to extract
+      text, and the photo is saved into the local recipe record. It is never
+      uploaded to the developer. Marked as Photos or Videos / Other User Content
+      depending on reading; we declare it as user content to be safe.
+    -->
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypePhotosorVideos</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+      </array>
+    </dict>
+
+    <!--
+      Sync credentials, when the user configures WebDAV or an OAuth provider.
+
+      The user's own username/password/client secret for THEIR storage provider.
+      Stored locally in the app container with the rest of the settings. Sent
+      only to the provider the user named. Not visible to the developer.
+
+      Declared as "Other" — it is user-provided configuration rather than a
+      credential for an account held with the developer.
+    -->
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypeOtherDataTypes</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+      </array>
+    </dict>
+
+  </array>
+
+  <!--
+    ===================================================================
+    NSPrivacyAccessedAPITypes  (required-reason APIs)
+    ===================================================================
+    Apple requires a declared reason for each of a specific list of APIs.
+    Only the categories this app actually touches are listed.
+
+    If App Store Connect flags an undeclared API after upload, add its
+    category here with the matching approved reason code.
+  -->
+  <key>NSPrivacyAccessedAPITypes</key>
+  <array>
+
+    <!--
+      File timestamp APIs.
+
+      The app shows a recipe's updatedAt and a backup's exportedAt, and uses
+      timestamps to decide which copy wins during sync. It reads timestamps; it
+      does not inspect them to fingerprint the user or the device.
+    -->
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>C617.1</string>
+      </array>
+    </dict>
+
+    <!--
+      User defaults / local storage.
+
+      Dexie (IndexedDB) holds the recipes, and localStorage carries the
+      BroadcastChannel fallback that keeps the detached timer window in sync
+      with the main window.
+    -->
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>CA92.1</string>
+      </array>
+    </dict>
+
+    <!--
+      Disk space APIs.
+
+      Used only to report a friendly error when local storage is full, and to
+      check there is room before writing a backup.
+    -->
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>E174.1</string>
+      </array>
+    </dict>
+
+  </array>
+
+</dict>
+</plist>

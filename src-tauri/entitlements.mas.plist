@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements for the Mac App Store (MAS) build.
+
+  Sandboxing is mandatory for Mac App Store apps (App Store Review Guideline
+  2.4.5), so every capability the app needs must be declared here explicitly.
+
+  This file is applied ONLY to the App Store build. The direct-download
+  (Developer ID) build keeps its unsandboxed entitlements so that existing
+  installs are unaffected. See tauri.mas.conf.json.
+-->
+<plist version="1.0">
+<dict>
+  <!-- Required: without this the app is not sandboxed and the App Store rejects it. -->
+  <key>com.apple.security.app-sandbox</key>
+  <true/>
+
+  <!--
+    Outbound network access.
+
+    Needed for: recipe import from websites (fetch_text, fetch_binary and the
+    hidden WKWebView fetcher), the user-configured CORS proxy fallbacks, the
+    optional Lambda recipe proxy, the bundled tesseract.js OCR worker/assets
+    downloaded at first use, and WebDAV/iCloud/OneDrive/Google Drive/Dropbox
+    sync. All of it is user-initiated, but the sandbox requires the entitlement
+    regardless of what the user asked for.
+  -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+
+  <!--
+    Reading files the user explicitly picks.
+
+    Needed for: importing a recipe photo for OCR and opening a backup .json
+    through the system open panel (dialog:allow-open + fs:allow-read-text-file).
+    Files arrive via the powerbox, so no broader scope is granted.
+  -->
+  <key>com.apple.security.files.user-selected.read-only</key>
+  <true/>
+
+  <!--
+    Writing files the user explicitly picks.
+
+    Needed for: saving a backup .json through the system save panel
+    (dialog:allow-save + fs:allow-write-text-file).
+  -->
+  <key>com.apple.security.files.user-selected.read-write</key>
+  <true/>
+
+  <!--
+    Printing.
+
+    Needed for the print feature (core:webview:allow-print). Printing from a
+    sandboxed app requires this entitlement; without it the print panel fails.
+  -->
+  <key>com.apple.security.print</key>
+  <true/>
+
+  <!--
+    Deliberately NOT included:
+
+    - com.apple.security.network.server
+        The app listens on no ports. Excluded on purpose; declaring it invites
+        a review question with no good answer.
+
+    - com.apple.security.device.camera / .microphone / .audio-input
+        Photos are chosen from disk through the open panel, not captured. The
+        timer plays audio only (output), which needs no entitlement.
+
+    - com.apple.security.files.downloads / .pictures / etc.
+        No blanket folders are touched; every file access goes through a user
+        pick, which the user-selected entitlements above already cover.
+  -->
+</dict>
+</plist>

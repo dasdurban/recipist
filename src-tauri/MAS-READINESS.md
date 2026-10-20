@@ -1,0 +1,144 @@
+# Mac App Store readiness
+
+Notes for shipping The Recipe App through the Mac App Store (MAS). This is
+separate from the direct-download `.dmg`, which stays unsandboxed and is
+unaffected by everything here.
+
+## Status
+
+| Requirement | State |
+|---|---|
+| Apple Developer Program membership | **You have it** |
+| App Sandbox (Guideline 2.4.5) | ✅ `src-tauri/entitlements.mas.plist` |
+| Privacy manifest | ✅ `src-tauri/PrivacyInfo.xcprivacy` |
+| Signing + packaging config | ✅ `src-tauri/tauri.mas.conf.json` |
+| Build script | ✅ `scripts/build-mas.sh` |
+| **Xcode 26 or later installed** | ❌ **Blocked — see below** |
+| Data migration for the sandbox container | ❌ **Not started — see below** |
+| Privacy policy URL | ❌ Not written |
+| App Store Connect listing | ❌ Not started |
+
+## Blocker 1: Xcode
+
+The App Store requires the app to be built with **Xcode 26 or later**. This
+machine has only the Command Line Tools:
+
+```
+xcode-select -p  ->  /Library/Developer/CommandLineTools
+```
+
+`scripts/build-mas.sh` checks this first and stops with instructions. Fix:
+
+1. Install Xcode (from the App Store or developer.apple.com).
+2. `sudo xcode-select -s /Applications/Xcode.app`
+3. `xcodebuild -version` should print 26.x or later.
+
+Note: this machine is on macOS 15.7.7. If Xcode 26 requires a newer macOS, an
+OS upgrade is a prerequisite.
+
+## Blocker 2: the sandbox moves the data directory
+
+**This is the part that can silently lose a user's recipes.**
+
+Today (unsandboxed) WebKit stores the app's data at:
+
+```
+~/Library/WebKit/com.recipist.app/WebsiteData/IndexedDB/
+```
+
+Once the app is sandboxed, macOS relocates that to the container:
+
+```
+~/Library/Containers/com.recipist.app/Data/Library/WebKit/
+```
+
+The app will therefore start with **no recipes**, because it is looking in a
+directory it has never written to. This affects anyone upgrading from the
+direct-download build — including you, since your real data is the 9.7 MB store
+under `~/Library/WebKit/com.recipist.app/`.
+
+Options, in order of preference:
+
+1. **Ship the MAS build as a fresh start.** Simple and honest for a new app on a
+   new channel, and it sidesteps a sandbox-escape problem entirely. Users on the
+   direct-download build migrate with the backup/export feature that already
+   exists.
+2. **Write a one-time migration.** On first launch, detect the pre-sandbox store
+   and copy it into the container. **This cannot be done with the sandbox
+   enabled** — a sandboxed app has no read access to `~/Library/WebKit/`. It
+   would need a temporary unsandboxed helper, or the user does a manual
+   export/import once. Treat this as a real project, not a quick fix.
+
+Recommendation: **option 1.** Document it in the release notes and point at the
+existing backup feature.
+
+## What was declared, and why
+
+### Entitlements (`entitlements.mas.plist`)
+
+| Entitlement | Why it is needed |
+|---|---|
+| `app-sandbox` | Mandatory for MAS |
+| `network.client` | Recipe import, OCR worker download, WebDAV/cloud sync |
+| `files.user-selected.read-only` | Opening a photo for OCR, opening a backup file |
+| `files.user-selected.read-write` | Saving a backup file |
+| `print` | The print feature |
+
+Deliberately **not** declared: `network.server` (the app listens on nothing),
+camera/microphone (photos come from disk, not capture).
+
+### Privacy manifest (`PrivacyInfo.xcprivacy`)
+
+- `NSPrivacyTracking: false` — there is no analytics, telemetry, ad SDK or
+  fingerprinting anywhere in the codebase (verified by search).
+- Three collected-data entries, all `linked: false` and `tracking: false`:
+  - `OtherUserContent` — the recipes the user creates or imports
+  - `PhotosorVideos` — images imported for OCR
+  - `OtherDataTypes` — the user's own sync credentials for their own provider
+- Three required-reason API categories:
+  - `FileTimestamp` / `C617.1` — timestamps of files in the app container
+  - `UserDefaults` / `CA92.1` — IndexedDB and the timer's localStorage
+  - `DiskSpace` / `E174.1` — checking space before writing a backup
+
+Verified against Apple's published reason-code list.
+
+**Per-bundle rule:** Apple requires a manifest for *each* bundle that touches a
+required-reason API. This app is self-contained (Rust links statically, no
+bundled `.dylib`/`.framework` — verified against the built app), so one manifest
+covers everything. If a future dependency ships its own dynamic library, it
+needs its own manifest.
+
+### One open question about `E174.1`
+
+`E174.1` requires that the app *visibly* behaves differently based on disk
+space. If nothing in the UI changes when space is low, this declaration is not
+accurate for a dependency doing the check silently. Confirm the app surfaces a
+"storage is full" message before submitting, or drop this category.
+
+## Building and submitting
+
+```bash
+./scripts/build-mas.sh
+```
+
+The script verifies the toolchain, builds, bundles with the MAS config, checks
+the privacy manifest is inside the bundle and that `app-sandbox` is present in
+the signed entitlements, signs with your Apple Distribution identity, and prints
+the upload command.
+
+Then:
+
+1. Upload the **`.app`** (not a `.dmg`) with Transporter or `xcrun altool`.
+2. In App Store Connect, complete the listing: description, screenshots,
+   category, age rating.
+3. **Add the privacy policy URL.** Policy requires one for desktop apps; you
+   have none yet.
+4. Submit for review.
+
+## Constraints to remember
+
+- **No self-updating.** Staying in the Store means updates go through the Store.
+  Do not add a Tauri updater or Sparkle to the MAS build.
+- **No license screens or keys** at launch — the app already complies.
+- The MAS build and the direct-download build are the same source. Only the
+  config, entitlements and signing differ.
