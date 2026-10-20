@@ -24,7 +24,11 @@
 param(
   [switch]$Register,
   [switch]$Package,
-  [string]$Configuration = "release"
+  [string]$Configuration = "release",
+  # MakeAppx.exe to use. Defaults to PATH, but CI passes the full path from the
+  # Windows SDK because GITHUB_PATH only affects later steps, not the step that
+  # sets it.
+  [string]$MakeAppxPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -67,9 +71,17 @@ if ($quad -notmatch '^\d+\.\d+\.\d+\.\d+$') {
   Write-Error "Version '$quad' is not major.minor.build.revision."
 }
 
-$makeAppx = Get-Command MakeAppx.exe -ErrorAction SilentlyContinue
-if ($Package -and -not $makeAppx) {
-  Write-Error "MakeAppx.exe not on PATH. Install the Windows SDK (or the MSIX Packaging Tools component) and run this from a Developer PowerShell."
+# Resolve MakeAppx to a full path. An explicit path wins; otherwise look on PATH.
+$makeAppxExe = ""
+if (-not [string]::IsNullOrWhiteSpace($MakeAppxPath)) {
+  if (Test-Path $MakeAppxPath) { $makeAppxExe = (Resolve-Path $MakeAppxPath).Path }
+} else {
+  $found = Get-Command MakeAppx.exe -ErrorAction SilentlyContinue
+  if ($found) { $makeAppxExe = $found.Source }
+}
+
+if ($Package -and [string]::IsNullOrWhiteSpace($makeAppxExe)) {
+  Write-Error "MakeAppx.exe not found. Install the Windows SDK (the 'MSIX Packaging Tools' component) and either run this from a Developer PowerShell, or pass -MakeAppxPath."
 }
 
 # --- stage -----------------------------------------------------------------
@@ -170,7 +182,7 @@ if ($Register) {
 $msixPath = Join-Path $outputDir "TheRecipeApp_${quad}_x64.msix"
 Write-Host ""
 Write-Host "Packing with MakeAppx..."
-& $makeAppx.Source pack /d $staging /p $msixPath /o
+& $makeAppxExe pack /d $staging /p $msixPath /o
 if ($LASTEXITCODE -ne 0) { Write-Error "MakeAppx failed." }
 
 $size = [math]::Round((Get-Item $msixPath).Length / 1MB, 2)

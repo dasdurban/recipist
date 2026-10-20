@@ -101,8 +101,15 @@ npx tauri build
 pwsh scripts/build-msix.ps1 -Package
 ```
 
-This requires `MakeAppx.exe` on PATH, from the Windows SDK ("MSIX Packaging
-Tools" component). Output:
+This requires `MakeAppx.exe`, from the Windows SDK (the "MSIX Packaging
+Tools" component), so run it from a Developer PowerShell — or pass the path
+explicitly with `-MakeAppxPath`:
+
+```powershell
+pwsh scripts/build-msix.ps1 -Package -MakeAppxPath "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\MakeAppx.exe"
+```
+
+Output:
 
 ```
 src-tauri/target/msix/TheRecipeApp_0.1.0.0_x64.msix

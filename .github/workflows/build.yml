@@ -126,22 +126,26 @@ jobs:
           }
           $identity | ConvertTo-Json | Set-Content src-tauri/msix/identity.json -Encoding UTF8
 
-          # Put MakeAppx on PATH from the Windows SDK. GitHub's windows-latest
-          # image has the SDK but not the Developer PowerShell environment.
+          # Locate MakeAppx in the Windows SDK. The windows-latest image has the
+          # SDK, but not the Developer PowerShell environment that normally puts
+          # it on PATH.
+          #
+          # The path is passed to the script directly rather than added to
+          # GITHUB_PATH: GITHUB_PATH only affects *later* steps, so a step that
+          # adds it and then runs MakeAppx in the same step would still fail.
           $sdkBin = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Directory |
             Where-Object { $_.Name -match '^10\.' } |
             Sort-Object Name -Descending |
             Select-Object -First 1 |
             ForEach-Object { Join-Path $_.FullName "x64" }
-          if ($sdkBin -and (Test-Path (Join-Path $sdkBin "MakeAppx.exe"))) {
-            Add-Content $env:GITHUB_PATH $sdkBin
-            Write-Host "Using MakeAppx from $sdkBin"
-          } else {
+          $makeAppx = if ($sdkBin) { Join-Path $sdkBin "MakeAppx.exe" } else { "" }
+          if (-not $makeAppx -or -not (Test-Path $makeAppx)) {
             Write-Host "::error::MakeAppx.exe not found in the Windows SDK."
             exit 1
           }
+          Write-Host "Using MakeAppx from $makeAppx"
 
-          pwsh scripts/build-msix.ps1 -Package
+          pwsh scripts/build-msix.ps1 -Package -MakeAppxPath $makeAppx
 
       - name: Upload the Store package
         if: matrix.artifact == 'windows-x64' && hashFiles('src-tauri/target/msix/*.msix') != ''
