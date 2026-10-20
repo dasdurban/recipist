@@ -9,11 +9,23 @@
  */
 import { WebviewWindow, getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { currentMonitor } from '@tauri-apps/api/window'
-import { isTauri, TIMER_WINDOW_LABEL } from './native'
+import { isTauri, TIMER_WINDOW_LABEL, TIMER_PANEL_HEIGHT_EVENT } from './native'
 
+/**
+ * The window is sized to the panel, not the other way round.
+ *
+ * `height` in the window options is the *outer* height, so the OS title bar and
+ * borders come out of it — and that frame is a different size on Windows, macOS
+ * and Linux. Hard-coding one number therefore leaves the panel slightly clipped
+ * on whichever platform the frame is tallest. Instead the window opens at a
+ * sane default and then asks the panel how much room it actually needs.
+ */
 const WIDTH = 360
-const HEIGHT = 620
+const HEIGHT = 640
 const MARGIN = 16
+
+/** Height to fall back on if the panel cannot report its own. */
+const MIN_HEIGHT = 460
 
 /** Guards against a second click creating a duplicate window. */
 let opening = false
@@ -43,20 +55,60 @@ export async function openTimerWindow(): Promise<boolean> {
       width: WIDTH,
       height: HEIGHT,
       minWidth: 300,
-      minHeight: 460,
+      minHeight: MIN_HEIGHT,
       resizable: true,
       maximizable: false,
       ...position,
     })
 
     return await new Promise<boolean>((resolve) => {
-      timer.once('tauri://created', () => resolve(true))
+      // The panel measures itself once it has rendered and asks for whatever
+      // height it needs; see `fitTimerWindow`.
       timer.once('tauri://error', () => resolve(false))
+      timer.once('tauri://created', () => {
+        resolve(true)
+        void fitTimerWindow(timer)
+      })
     })
   } catch {
     return false
   } finally {
     opening = false
+  }
+}
+
+/**
+ * Grows the timer window to fit the panel exactly.
+ *
+ * The panel cannot be measured before it has rendered, and the frame the OS
+ * draws around the window differs per platform, so instead of guessing we
+ * measure from inside: the panel reports the height its content needs
+ * (`TIMER_PANEL_HEIGHT_EVENT`), and here we set the outer height to that plus
+ * whatever frame the window currently has.
+ */
+async function fitTimerWindow(win: WebviewWindow): Promise<void> {
+  try {
+    const { listen } = await import('@tauri-apps/api/event')
+    const { LogicalSize } = await import('@tauri-apps/api/window')
+    const stop = await listen<number>(TIMER_PANEL_HEIGHT_EVENT, async (event) => {
+      const needed = event.payload
+      if (!Number.isFinite(needed) || needed <= 0) return
+      try {
+        const [outer, inner, scale] = await Promise.all([
+          win.outerSize(),
+          win.innerSize(),
+          win.scaleFactor(),
+        ])
+        // Frame = outer minus inner, in physical pixels.
+        const frame = Math.max(0, (outer.height - inner.height) / scale)
+        await win.setSize(new LogicalSize(Math.round(WIDTH), Math.round(needed + frame)))
+      } catch {
+        /* resizing is cosmetic — never let it break the window */
+      }
+      stop()
+    })
+  } catch {
+    /* the event API is unavailable; the default height stands */
   }
 }
 

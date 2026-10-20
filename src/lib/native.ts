@@ -22,6 +22,14 @@ export function isTauri(): boolean {
 export const TIMER_WINDOW_LABEL = 'timer'
 
 /**
+ * Emitted by the panel once it knows how tall it is, so the detached window can
+ * size itself to the content instead of to a guess. The OS adds its own title
+ * bar and borders, and that frame differs per platform, so the reporter sends
+ * the *inner* height the panel needs and `fitTimerWindow` adds the frame.
+ */
+export const TIMER_PANEL_HEIGHT_EVENT = 'recipist:timer-panel-height'
+
+/**
  * Which surface this window is: the main app, the detached timer, or a plain
  * browser tab. Used to route rendering and to decide which window rings the
  * timer (see the store's timer slice).
