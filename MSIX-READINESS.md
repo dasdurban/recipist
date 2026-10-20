@@ -124,6 +124,11 @@ Partner Center walks through these; the ones that need thought are marked.
 | Store listings | Description, and **at least one screenshot — four recommended** |
 | Submission options | Declare the restricted capability `runFullTrust` |
 
+Minimum OS is Windows 10 2004 (10.0.19041.0). That floor comes from the
+manifest using `uap10:RuntimeBehavior` and `uap10:TrustLevel`, which Microsoft
+introduced in that release; older builds would need the legacy `EntryPoint`
+attribute instead. 2004 is well past end of support, so this costs nothing.
+
 The `runFullTrust` capability is a restricted capability, so the submission has
 to declare it and probably justify it. For a packaged Win32 app this is
 routine: the app is a normal desktop program, not a sandboxed UWP app.

@@ -38,9 +38,12 @@
   </Resources>
 
   <Dependencies>
-    <!-- Windows 10 1809 and newer. WebView2 is already common there, and the
-         installer carries an embedded runtime for machines without it. -->
-    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0" />
+    <!-- Windows 10 2004 (10.0.19041.0) is the floor because the Application
+         element below uses uap10:RuntimeBehavior and uap10:TrustLevel, which
+         Microsoft introduced in that release. Older builds would need the
+         legacy EntryPoint attribute instead. 2004 is well past end of support,
+         so this costs nothing. -->
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.22621.0" />
   </Dependencies>
 
   <Capabilities>
