@@ -1,6 +1,6 @@
 [package]
 name = "recipist"
-version = "0.2.1"
+version = "0.2.2"
 description = "A personal recipe organiser"
 authors = ["Victor <dasleveille@gmail.com>"]
 license = ""

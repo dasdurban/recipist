@@ -36,7 +36,7 @@ function useRemaining() {
 const FACE_R = 43.5
 const TICKS = Array.from({ length: 60 }, (_, i) => i)
 const LABELS = Array.from({ length: 12 }, (_, i) => ({ value: i * 5, deg: i * 30 }))
-const PRESETS = [15, 1, 2, 3, 5, 10, 20, 25, 30, 45, 60]
+const PRESETS = [1, 2, 3, 5, 10, 15, 20, 30, 45, 60]
 
 export function TimerPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
@@ -279,23 +279,43 @@ export function TimerPanelBody() {
             Set
           </button>
         </div>
-        <div className="flex flex-wrap justify-center gap-1.5 pt-1">
-          {PRESETS.map((p) => {
-            const active = duration === p * 60
-            return (
-              <button
-                key={p}
-                className={clsx(
-                  'btn-ghost !py-1 !px-2 text-xs',
-                  active && '!bg-surface-3 text-brand ring-1 ring-brand/40',
-                )}
-                aria-pressed={active}
-                onClick={() => setDuration(p * 60)}
-              >
-                {p} min
-              </button>
-            )
-          })}
+        <div className="flex flex-col items-center gap-1.5 pt-1">
+          <div className="flex flex-wrap justify-center gap-1.5">
+            {PRESETS.slice(0, 5).map((p) => {
+              const active = duration === p * 60
+              return (
+                <button
+                  key={p}
+                  className={clsx(
+                    'btn-ghost !py-1 !px-2 text-xs',
+                    active && '!bg-surface-3 text-brand ring-1 ring-brand/40',
+                  )}
+                  aria-pressed={active}
+                  onClick={() => setDuration(p * 60)}
+                >
+                  {p} min
+                </button>
+              )
+            })}
+          </div>
+          <div className="flex flex-wrap justify-center gap-1.5">
+            {PRESETS.slice(5, 10).map((p) => {
+              const active = duration === p * 60
+              return (
+                <button
+                  key={p}
+                  className={clsx(
+                    'btn-ghost !py-1 !px-2 text-xs',
+                    active && '!bg-surface-3 text-brand ring-1 ring-brand/40',
+                  )}
+                  aria-pressed={active}
+                  onClick={() => setDuration(p * 60)}
+                >
+                  {p} min
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 

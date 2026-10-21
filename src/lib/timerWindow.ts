@@ -21,11 +21,11 @@ import { isTauri, TIMER_WINDOW_LABEL, TIMER_PANEL_HEIGHT_EVENT } from './native'
  * sane default and then asks the panel how much room it actually needs.
  */
 const WIDTH = 360
-const HEIGHT = 700
+const HEIGHT = 740
 const MARGIN = 16
 
 /** Height to fall back on if the panel cannot report its own. */
-const MIN_HEIGHT = 520
+const MIN_HEIGHT = 560
 
 /** Guards against a second click creating a duplicate window. */
 let opening = false
@@ -84,9 +84,10 @@ export async function openTimerWindow(): Promise<boolean> {
  * draws around the window differs per platform, so instead of guessing we
  * measure from inside: the panel reports the height its content needs
  * (`TIMER_PANEL_HEIGHT_EVENT`), and here we set the outer height to that plus
- * whatever frame the window currently has.
+ * whatever frame the window currently has. We always enforce a minimum so the
+ * Start/Reset buttons are never clipped.
  */
-async function fitTimerWindow(win: WebviewWindow): Promise<void> {
+async function fitTimerWindow(win: WebviewWindow, minHeight: number = MIN_HEIGHT): Promise<void> {
   try {
     const { listen } = await import('@tauri-apps/api/event')
     const { LogicalSize } = await import('@tauri-apps/api/window')
@@ -101,12 +102,21 @@ async function fitTimerWindow(win: WebviewWindow): Promise<void> {
         ])
         // Frame = outer minus inner, in physical pixels.
         const frame = Math.max(0, (outer.height - inner.height) / scale)
-        await win.setSize(new LogicalSize(Math.round(WIDTH), Math.round(needed + frame)))
+        const target = Math.max(Math.round(needed + frame), Math.round(minHeight))
+        await win.setSize(new LogicalSize(Math.round(WIDTH), target))
       } catch {
         /* resizing is cosmetic — never let it break the window */
       }
       stop()
     })
+    // If the window already exists from a previous run, force it up to the
+    // minimum right now rather than waiting for the event to fire again.
+    try {
+      const { LogicalSize } = await import('@tauri-apps/api/window')
+      await win.setSize(new LogicalSize(Math.round(WIDTH), Math.round(minHeight)))
+    } catch {
+      /* ignore */
+    }
   } catch {
     /* the event API is unavailable; the default height stands */
   }

@@ -65,57 +65,30 @@ export function orderId(viewId: string, recipeId: string): string {
  * only the dragged one were pinned, the rest would keep reshuffling underneath
  * it as recipes were edited.
  *
- * Positions already stored are reused, so an unchanged recipe keeps its row and
- * a drop only rewrites what actually moved.
+ * Positions are assigned from `visible` order, one step apart, so the array the
+ * caller hands in is what the view actually shows. An earlier version reused any
+ * stored position and only filled in the missing ones, on the theory that a drop
+ * should rewrite only what moved — but that made the argument meaningless:
+ * recipes that already had positions kept them, so the new order was discarded
+ * and the grid snapped back to what it was. Since this table exists purely to
+ * express one view's order, the incoming order is the only sensible source.
  */
 export function ordersForView(
   visible: Recipe[],
   orders: RecipeOrder[],
   viewId: string,
 ): RecipeOrder[] {
-  const positionFor = new Map<string, number>()
-  for (const order of orders) {
-    if (order.viewId === viewId) positionFor.set(order.recipeId, order.position)
-  }
+  // Nothing is carried over from `orders`; it is passed in only so callers do
+  // not have to special-case the empty case, and so this signature stays
+  // obviously symmetric with sortRecipesForView.
+  void orders
 
   const now = Date.now()
   return visible.map((recipe, index) => ({
     id: orderId(viewId, recipe.id),
     viewId,
     recipeId: recipe.id,
-    position: positionFor.get(recipe.id) ?? freshPosition(positionFor, visible, index),
+    position: (index + 1) * STEP,
     updatedAt: now,
   }))
-}
-
-/**
- * A position for a recipe that had none, chosen to sit between its already
- * placed neighbours in the new order.
- */
-function freshPosition(
-  positionFor: Map<string, number>,
-  visible: Recipe[],
-  index: number,
-): number {
-  let before: number | undefined
-  for (let i = index - 1; i >= 0; i--) {
-    const position = positionFor.get(visible[i].id)
-    if (position !== undefined) {
-      before = position
-      break
-    }
-  }
-  let after: number | undefined
-  for (let i = index + 1; i < visible.length; i++) {
-    const position = positionFor.get(visible[i].id)
-    if (position !== undefined) {
-      after = position
-      break
-    }
-  }
-
-  if (before === undefined && after === undefined) return (index + 1) * STEP
-  if (before === undefined) return after! - STEP
-  if (after === undefined) return before + STEP
-  return (before + after) / 2
 }

@@ -103,16 +103,12 @@ export function CategoryPage({
    * Takes plain values rather than an event so it can be called from a timer.
    */
   function grabTile(id: string, tile: HTMLElement, x: number, y: number) {
-    if (heldId === id) {
-      // Pressing the held tile again means "never mind", so it goes back to
-      // where it was lifted from rather than being dropped under the cursor.
-      cancelHold()
-      return
-    }
-
     if (heldId) {
-      // A press on a *different* tile places the held one, which is what the
-      // second half of the gesture usually means.
+      // Any press while a tile is held means "put it down here" — including a
+      // press on the held tile itself, which is the obvious way to set a recipe
+      // down once it is under the cursor. Treating that as "never mind" made the
+      // gesture cancel itself, because the tile being carried is usually the one
+      // under the pointer. Escape is the way to back out.
       placeHeld()
       return
     }
@@ -242,6 +238,11 @@ export function CategoryPage({
 
   function cancelHold() {
     const original = orderAtGrabRef.current
+    // Compare against the *preview*, not `shown`. Clearing previewIds re-renders
+    // the grid in its saved order, so by the time this runs `shown` no longer
+    // reflects the move that is being undone and the check below would read the
+    // two as equal even when the tile had been dragged somewhere.
+    const moved = previewRef.current
     setHeldId(null)
     setPointer(null)
     setTileSize(null)
@@ -249,7 +250,7 @@ export function CategoryPage({
     setPreviewIds(null)
     orderAtGrabRef.current = null
     // Nothing to undo if the tile never moved; only write when it did.
-    if (original && original.join() !== shown.map((r) => r.id).join()) {
+    if (original && moved && original.join() !== moved.join()) {
       void reorderRecipes(viewId, original)
     }
   }
