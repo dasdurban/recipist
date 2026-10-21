@@ -16,6 +16,17 @@ each piece lives.
 | Local test on Windows | **Needed** — `-Register` mode, no certificate |
 | Submit | **Needed** — upload the `.msix` to Partner Center |
 
+> **The two stores will show different names.** Microsoft accepted and reserved
+> **"The Recipe App"**. Apple had that name taken, so its record is
+> **"Tomato - The Recipe App"**. The installed app is "The Recipe App" in both
+> cases, because that is what `AppxManifest.xml` and the macOS bundle carry.
+>
+> This is legal in both stores and needs no change to the build, but the
+> mismatch is worth knowing about before it is noticed in a review or a support
+> question. Renaming means touching the macOS listing only — the Microsoft
+> reservation, the MSIX identity values and the bundle identifier
+> `com.recipist.app` are all independent of the Apple name.
+
 ## Why MSIX and not the MSI
 
 The Store accepts both, but re-signs only MSIX:

@@ -7,7 +7,7 @@ Paired with `src-tauri/MAS-READINESS.md`, which covers the build side.
 
 | Field | Value |
 | --- | --- |
-| App name | The Recipe App |
+| App name | **Tomato - The Recipe App** |
 | Bundle ID | `com.recipist.app` |
 | SKU | `recipist-001` (any unique string; not shown to users) |
 | Primary language | English (U.S.) |
@@ -19,6 +19,33 @@ Paired with `src-tauri/MAS-READINESS.md`, which covers the build side.
 
 The SKU is internal only. It cannot be changed after the record is created, but
 nothing user-visible depends on it.
+
+### Why the app name is "Tomato - The Recipe App"
+
+"The Recipe App" was already taken in App Store Connect, so the record carries
+the hyphenated name above. Apple's uniqueness rule applies to the **store
+listing** name, not to the bundle name, so nothing in the build has to change to
+satisfy it.
+
+That leaves a deliberate mismatch worth understanding rather than discovering at
+review:
+
+| Where | Reads |
+| --- | --- |
+| App Store listing, search results | Tomato - The Recipe App |
+| Installed app: Dock, Launchpad, app menu, sidebar | The Recipe App |
+
+This is permitted — the store name may carry a qualifier that the installed name
+omits — but both must still be recognisably the same app. "Tomato" as a leading
+qualifier reads as a brand prefix, which is the accepted pattern; a name that
+looked unrelated to the installed app would invite a question under Guideline
+2.3.8 (accurate metadata).
+
+**If the mismatch is ever questioned**, the cheap fix is to make the two agree:
+set `bundle.macOS` `CFBundleDisplayName` to `Tomato - The Recipe App`, or rename
+the in-app strings. The one thing that must **not** change is the bundle
+identifier `com.recipist.app` — it is fixed to the App Store Connect record and
+to the provisioning profile, and changing it means a new record and a new app.
 
 ## Subtitle
 
@@ -47,7 +74,7 @@ A local-first recipe box. Import from any cooking site, plan meals, build shoppi
 ## Description
 
 ```
-The Recipe App keeps your recipes in one place and gets out of the way.
+Tomato keeps your recipes in one place and gets out of the way.
 
 Import a recipe from a cooking website and it arrives readable: ingredients,
 steps, times, and a photo, with the clutter stripped out. Scan a page or a
