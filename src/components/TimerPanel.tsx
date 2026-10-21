@@ -137,7 +137,7 @@ export function TimerPanelBody() {
             dragging.current = false
           }}
           className={clsx(
-            'relative h-60 w-60 shrink-0 rounded-full select-none',
+            'relative h-[216px] w-[216px] shrink-0 rounded-full select-none',
             settable && 'cursor-grab touch-none active:cursor-grabbing',
             done && 'animate-pulse',
           )}
