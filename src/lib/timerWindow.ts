@@ -113,7 +113,7 @@ async function fitTimerWindow(win: WebviewWindow, minHeight: number = MIN_HEIGHT
     // minimum right now rather than waiting for the event to fire again.
     try {
       const { LogicalSize } = await import('@tauri-apps/api/window')
-      await win.setSize(new LogicalSize(Math.round(WIDTH), Math.round(minHeight)))
+      await win.setSize(new LogicalSize(Math.round(WIDTH), Math.round(HEIGHT)))
     } catch {
       /* ignore */
     }
