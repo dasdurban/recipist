@@ -62,10 +62,29 @@ if (-not (Test-Path $binary)) {
 }
 
 if (-not (Test-Path $identityFile)) {
-  Write-Error "Missing $identityFile. Copy identity.example.json and fill in the values from Partner Center (Product management > App identity)."
+  if ($Package) {
+    # The real Partner Center values only matter for a package that will be
+    # uploaded, where the publisher has to match the account that signs it.
+    Write-Error "Missing $identityFile. Copy identity.example.json and fill in the values from Partner Center (Product management > App identity)."
+  } else {
+    # -Register installs the staged folder for the current user only, so the
+    # publisher is never checked against anything. Allowing it to run without
+    # the file means a fresh clone can test the package before the Partner
+    # Center values exist, which is the situation on any new machine.
+    Write-Host "No $identityFile, so local placeholders are being used."
+    Write-Host "That is fine for -Register; -Package needs the real values."
+  }
 }
 
-$identity = Get-Content $identityFile -Raw | ConvertFrom-Json
+$identity = if (Test-Path $identityFile) {
+  Get-Content $identityFile -Raw | ConvertFrom-Json
+} else {
+  [pscustomobject]@{
+    identityName          = "RecipistLocal.Test"
+    identityPublisher     = "CN=Recipist Local Test"
+    publisherDisplayName  = "Recipist (local test)"
+  }
+}
 
 foreach ($field in @("identityName", "identityPublisher", "publisherDisplayName")) {
   if ([string]::IsNullOrWhiteSpace($identity.$field)) {
