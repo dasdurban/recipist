@@ -215,6 +215,28 @@ if ($Sign) {
   Write-Host ""
   Write-Host "Signing for local testing with a self-signed certificate."
 
+  # Signing is half a job without trust: the certificate has to reach
+  # LocalMachine\TrustedPeople, and that needs administrator rights. Checking
+  # up front means a single clear message instead of a signature that installs
+  # nowhere and looks like the same bug as before.
+  $isAdmin = ([Security.Principal.WindowsPrincipal] `
+    [Security.Principal.WindowsIdentity]::GetCurrent()
+  ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+  if (-not $isAdmin) {
+    Write-Error @"
+-Package -Sign needs an elevated PowerShell.
+
+The certificate has to be trusted in LocalMachine\TrustedPeople for Windows to
+accept the package, and writing there requires administrator rights. Without it
+the .msix is signed but still refuses to install, which looks exactly like an
+unsigned one.
+
+Re-run this from a PowerShell opened as Administrator, or use -Register (which
+needs Developer Mode and no certificate at all) to test the app unpackaged.
+"@
+  }
+
   $signtool = Get-Command signtool.exe -ErrorAction SilentlyContinue
   if (-not $signtool) {
     $kits = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
@@ -262,16 +284,26 @@ if ($Sign) {
   Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $password | Out-Null
   Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
 
-  & $signtool sign /fd SHA256 /f $pfxPath /p "recipist-local-test" $msixPath
+  & $signtool sign /fd SHA256 /a /f $pfxPath /p "recipist-local-test" $msixPath
   if ($LASTEXITCODE -ne 0) { Write-Error "signtool failed." }
 
+  # Trust it. Elevation is guaranteed by the check above, so this cannot fail
+  # on rights — which is the whole reason that check exists.
+  $alreadyTrusted = Get-ChildItem Cert:\LocalMachine\TrustedPeople -ErrorAction SilentlyContinue |
+    Where-Object { $_.Thumbprint -eq $cert.Thumbprint }
+
+  if ($alreadyTrusted) {
+    Write-Host ""
+    Write-Host "Signed, and the certificate is already trusted on this machine."
+  } else {
+    Import-Certificate -FilePath $cerPath -CertStoreLocation "Cert:\LocalMachine\TrustedPeople" | Out-Null
+    Write-Host ""
+    Write-Host "Signed, and the certificate was added to LocalMachine\TrustedPeople."
+  }
+
   Write-Host ""
-  Write-Host "Signed. To install, the certificate must be trusted on this machine."
-  Write-Host "From an ELEVATED PowerShell, run:"
-  Write-Host ""
-  Write-Host "  Import-Certificate -FilePath '$cerPath' -CertStoreLocation Cert:\LocalMachine\TrustedPeople"
-  Write-Host ""
-  Write-Host "Then open $msixPath normally and Install will be available."
+  Write-Host "Open this file normally and Install will be available:"
+  Write-Host "  $msixPath"
   Write-Host ""
   Write-Host "This only ever works on this machine. A customer's Windows would"
   Write-Host "reject it, which is why submissions go to the Store unsigned."

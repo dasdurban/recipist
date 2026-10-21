@@ -175,25 +175,42 @@ Two ways round it, and they are not interchangeable:
 
 - **Test it now, unsigned** — use `-Register` above. It bypasses App Installer
   entirely and needs Developer Mode rather than a certificate.
-- **Get a double-clickable installer, locally** — `-Package -Sign` packs and
-  then signs with a self-signed certificate whose subject is copied from the
-  manifest publisher:
+- **Get a double-clickable installer, locally** — `-Package -Sign` packs, then
+  signs with a self-signed certificate whose subject is copied from the manifest
+  publisher:
 
   ```powershell
+  # must be an elevated PowerShell
   pwsh scripts/build-msix.ps1 -Package -Sign
   ```
 
-  The certificate has to be trusted before Windows will accept the package, and
-  `-Sign` prints the one command that does it (an elevated
-  `Import-Certificate` into `LocalMachine\TrustedPeople`).
+  Windows accepts a self-signed package only where the certificate is trusted in
+  `LocalMachine\TrustedPeople`, so the script refuses to run without elevation
+  and writes the certificate there itself. Run unelevated, it would produce a
+  signed package that still fails to install — indistinguishable from an
+  unsigned one, and the same greyed-out button. That is why the check is a hard
+  failure rather than a warning.
 
   This is **local testing only**. A self-signed certificate is not trusted on
   anyone else's machine, so a package signed this way cannot be distributed.
   That is the whole reason submissions are uploaded unsigned.
 
-The publisher subject and the certificate subject must match exactly. Windows
-reports a mismatch as a generic install failure, so `-Sign` reads the subject
-straight from `identity.json` rather than taking it as an argument.
+  The publisher subject and the certificate subject must match exactly. Windows
+  reports a mismatch as a generic install failure, so `-Sign` reads the subject
+  straight from `identity.json` rather than taking it as an argument.
+
+  To undo it afterwards:
+
+  ```powershell
+  Get-ChildItem Cert:\LocalMachine\TrustedPeople |
+    Where-Object { $_.Subject -eq "CN=9E4DEF0B-55B5-49CC-9745-FEB62EB67D55" } |
+    Remove-Item
+  ```
+
+- **Third possibility, if `Install` is available but the app misbehaves** — that
+  is a different problem from this one. A greyed-out button is always
+  trust/signature, never the manifest.
+
 
 ## Submission checklist
 
