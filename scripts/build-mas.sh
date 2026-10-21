@@ -33,6 +33,38 @@ die()  { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
 bold "Checking toolchain"
 
+# node and npx are needed twice over: `npx tauri` runs the build itself, and the
+# preflight below reads tauri.conf.json through node. Without them the build dies
+# partway through with a message that does not name the cause — the identifier
+# check degrades to "(could not read)" and the privacy check to "unknown", both
+# of which look cosmetic rather than fatal. Checking up front turns a confusing
+# late failure into an immediate, named one.
+if ! command -v node >/dev/null 2>&1; then
+  die "node is not on PATH.
+     The build runs through npx, and the checks below read tauri.conf.json
+     through node, so neither can work without it.
+     Install Node, or add it to PATH for this shell:
+       export PATH=\"/opt/homebrew/bin:\$PATH\"     # Apple Silicon Homebrew
+       export PATH=\"/usr/local/bin:\$PATH\"        # Intel Homebrew
+     Then confirm with:  node --version"
+fi
+echo "  node: $(node --version)"
+
+if ! command -v npm >/dev/null 2>&1; then
+  die "npm is not on PATH (node is, at $(command -v node)).
+     npm ships with Node, so this usually means PATH is half-configured rather
+     than Node being absent."
+fi
+echo "  npm:  $(npm --version)"
+
+# A checkout with no node_modules cannot build, and `npx tauri` would otherwise
+# try to fetch the CLI from the network mid-build.
+if [ ! -d node_modules ]; then
+  die "node_modules is missing. Run 'npm ci' first.
+     Use ci rather than install: it installs exactly what package-lock.json
+     pins, and fails loudly if that file has drifted from package.json."
+fi
+
 if ! xcode-select -p 2>/dev/null | grep -q "Xcode.app"; then
   die "Xcode is not the active developer directory (got: $(xcode-select -p 2>/dev/null || echo none)).
      App Store submissions must be built with Xcode 26 or later.
@@ -62,8 +94,13 @@ echo "  plists valid"
 
 # The bundle identifier in tauri.conf.json must match the provisioning profile
 # and the App Store Connect record, or the upload fails.
+# node is confirmed present above, so a failure here is a real problem rather
+# than a missing tool: either the config is unreadable or the identifier is gone.
 BUNDLE_ID="$(node -e "process.stdout.write(require('./src-tauri/tauri.conf.json').identifier)" 2>/dev/null || true)"
-echo "  bundle identifier: ${BUNDLE_ID:-(could not read)}"
+[ -n "$BUNDLE_ID" ] || die "could not read the bundle identifier from src-tauri/tauri.conf.json.
+     App Store Connect binds the upload to this value, so the build cannot proceed
+     without it."
+echo "  bundle identifier: $BUNDLE_ID"
 
 # Level the privacy manifest against the binary. A required-reason category
 # declared for an API the app never calls invites a review question, and a
@@ -80,7 +117,10 @@ if (text.includes("NSPrivacyAccessedAPICategoryUserDefaults")) declared.push("Us
 if (text.includes("NSPrivacyAccessedAPICategorySystemBootTime")) declared.push("SystemBootTime");
 if (text.includes("NSPrivacyAccessedAPICategoryActiveKeyboards")) declared.push("ActiveKeyboards");
 process.stdout.write(declared.join(",") || "none");
-' 2>/dev/null || echo "unknown")"
+' 2>/dev/null || true)"
+[ -n "$PRIVACY_CHECK" ] || die "could not read the privacy categories from src-tauri/PrivacyInfo.xcprivacy.
+     This file was linted as a valid plist above, so a failure here means the
+     manifest cannot be parsed by node."
 echo "  privacy categories declared: $PRIVACY_CHECK"
 
 # Check that the JS bundle shipped in dist/ does not call a disk-space API,
