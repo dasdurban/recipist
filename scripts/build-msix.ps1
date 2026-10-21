@@ -14,9 +14,17 @@
 #
 #   -Package    stage, then produce a .msix with MakeAppx.
 #
+#   -Sign       with -Package, also sign the .msix with a self-signed
+#               certificate whose subject matches the Partner Center publisher.
+#               For LOCAL TESTING ONLY: the certificate is not trusted on any
+#               other machine, so a package signed this way installs on the
+#               machine that made it and nowhere else. Store submissions are
+#               uploaded unsigned and Microsoft re-signs them.
+#
 # Usage:
 #   pwsh scripts/build-msix.ps1 -Register
 #   pwsh scripts/build-msix.ps1 -Package
+#   pwsh scripts/build-msix.ps1 -Package -Sign
 #
 # Run on Windows, after `npx tauri build` has produced the release binary.
 
@@ -24,6 +32,7 @@
 param(
   [switch]$Register,
   [switch]$Package,
+  [switch]$Sign,
   [string]$Configuration = "release",
   # MakeAppx.exe to use. Defaults to PATH, but CI passes the full path from the
   # Windows SDK because GITHUB_PATH only affects later steps, not the step that
@@ -194,6 +203,81 @@ if ($LASTEXITCODE -ne 0) { Write-Error "MakeAppx failed." }
 $size = [math]::Round((Get-Item $msixPath).Length / 1MB, 2)
 Write-Host ""
 Write-Host "Built $msixPath ($size MB)"
+
+if ($Sign) {
+  # A self-signed certificate, for local testing only. Windows refuses to
+  # install an unsigned .msix through App Installer, which is what the greyed
+  # out Install button means; signing with something this machine trusts is the
+  # only way to test that path without a purchased certificate.
+  #
+  # The subject has to equal the manifest's Publisher exactly, or the install
+  # fails with a signature/manifest mismatch rather than anything explanatory.
+  Write-Host ""
+  Write-Host "Signing for local testing with a self-signed certificate."
+
+  $signtool = Get-Command signtool.exe -ErrorAction SilentlyContinue
+  if (-not $signtool) {
+    $kits = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
+    if (Test-Path $kits) {
+      $signtool = Get-ChildItem $kits -Directory |
+        Where-Object { $_.Name -match '^10\.' } |
+        Sort-Object Name -Descending |
+        ForEach-Object { Join-Path $_.FullName "x64\signtool.exe" } |
+        Where-Object { Test-Path $_ } |
+        Select-Object -First 1
+    }
+  }
+  if (-not $signtool) {
+    Write-Error "signtool.exe not found. Signing needs it, and it defaults to a path that only exists when the Windows SDK is installed."
+  }
+  if ($signtool -isnot [string]) { $signtool = $signtool.Source }
+
+  $subject = $identity.identityPublisher
+  $certDir = Join-Path $srcTauri "target\msix\cert"
+  New-Item -ItemType Directory -Path $certDir -Force | Out-Null
+  $pfxPath = Join-Path $certDir "selfsigned.pfx"
+  $cerPath = Join-Path $certDir "selfsigned.cer"
+  # Only ever a local testing secret. Regenerated when absent.
+  $password = ConvertTo-SecureString -String "recipist-local-test" -Force -AsPlainText
+
+  # Reuse an existing certificate if one matches, so repeated builds do not
+  # accumulate certificates in the store.
+  $cert = Get-ChildItem Cert:\CurrentUser\My |
+    Where-Object { $_.Subject -eq $subject } |
+    Select-Object -First 1
+
+  if (-not $cert) {
+    $cert = New-SelfSignedCertificate `
+      -Type Custom `
+      -Subject $subject `
+      -KeyUsage DigitalSignature `
+      -FriendlyName "The Recipe App (local MSIX testing)" `
+      -CertStoreLocation "Cert:\CurrentUser\My" `
+      -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}")
+    Write-Host "Created a self-signed certificate: $subject"
+  } else {
+    Write-Host "Reusing the existing self-signed certificate: $subject"
+  }
+
+  Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $password | Out-Null
+  Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
+
+  & $signtool sign /fd SHA256 /f $pfxPath /p "recipist-local-test" $msixPath
+  if ($LASTEXITCODE -ne 0) { Write-Error "signtool failed." }
+
+  Write-Host ""
+  Write-Host "Signed. To install, the certificate must be trusted on this machine."
+  Write-Host "From an ELEVATED PowerShell, run:"
+  Write-Host ""
+  Write-Host "  Import-Certificate -FilePath '$cerPath' -CertStoreLocation Cert:\LocalMachine\TrustedPeople"
+  Write-Host ""
+  Write-Host "Then open $msixPath normally and Install will be available."
+  Write-Host ""
+  Write-Host "This only ever works on this machine. A customer's Windows would"
+  Write-Host "reject it, which is why submissions go to the Store unsigned."
+  exit 0
+}
+
 Write-Host ""
 Write-Host "This package is unsigned. That is correct for the Store: Microsoft"
 Write-Host "re-signs MSIX submissions during publishing, so no CA certificate is"

@@ -33,21 +33,19 @@ export function CategoryPage({
   const [query, setQuery] = useState('')
   const [colorOpen, setColorOpen] = useState(false)
 
-  // Drag state. Mirrors the sidebar's category reorder: a press is tracked, the
-  // drag activates once the pointer has moved, and the grid reorders live.
-  const [dragId, setDragId] = useState<string | null>(null)
+  // Reordering is "pick up, move, place": the first click lifts the tile out of
+  // the grid and pins it to the cursor, and a second click drops it. A press and
+  // drag would be the more obvious gesture, but a click would then have to be
+  // told apart from a small drag, and a shaky click would reorder a recipe
+  // instead of opening it. Two deliberate clicks remove that ambiguity.
+  const [heldId, setHeldId] = useState<string | null>(null)
   const [previewIds, setPreviewIds] = useState<string[] | null>(null)
   const previewRef = useRef<string[] | null>(null)
-  const suppressClickRef = useRef(false)
-  const dragRef = useRef<{
-    pointerId: number
-    id: string
-    startX: number
-    startY: number
-    tile: HTMLElement
-    active: boolean
-    order: string[]
-  } | null>(null)
+  /** Where the cursor is, used to position the tile while it is held. */
+  const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null)
+  const [tileSize, setTileSize] = useState<{ w: number; h: number } | null>(null)
+  /** The order before the pick-up, so a cancel can restore it exactly. */
+  const orderAtGrabRef = useRef<string[] | null>(null)
 
   /** Which stored arrangement this grid is showing. */
   const viewId = favoritesOnly ? FAVORITES_VIEW : category ? category.id : ALL_RECIPES_VIEW
@@ -100,76 +98,174 @@ export function CategoryPage({
     [recipeOrders, viewId],
   )
 
-  /** Starts tracking a press; the drag only activates once the pointer moves. */
-  function beginDrag(e: ReactPointerEvent<HTMLElement>, id: string) {
+  /**
+   * Lifts a tile, or resolves a press that arrives while one is already held.
+   * Takes plain values rather than an event so it can be called from a timer.
+   */
+  function grabTile(id: string, tile: HTMLElement, x: number, y: number) {
+    if (heldId === id) {
+      // Pressing the held tile again means "never mind", so it goes back to
+      // where it was lifted from rather than being dropped under the cursor.
+      cancelHold()
+      return
+    }
+
+    if (heldId) {
+      // A press on a *different* tile places the held one, which is what the
+      // second half of the gesture usually means.
+      placeHeld()
+      return
+    }
+
+    const rect = tile.getBoundingClientRect()
+    setTileSize({ w: rect.width, h: rect.height })
+    setPointer({ x, y })
+    orderAtGrabRef.current = shown.map((recipe) => recipe.id)
+    previewRef.current = shown.map((recipe) => recipe.id)
+    setPreviewIds(previewRef.current)
+    setHeldId(id)
+  }
+
+  /** Event-shaped entry point, for presses handled synchronously. */
+  function grabOrPlace(e: ReactPointerEvent<HTMLElement>, id: string) {
     if (e.button !== 0) return
     const tile = (e.currentTarget as HTMLElement).closest('[data-recipe-id]') as HTMLElement | null
     if (!tile) return
-    dragRef.current = {
-      pointerId: e.pointerId,
-      id,
-      startX: e.clientX,
-      startY: e.clientY,
-      tile,
-      active: false,
-      order: shown.map((recipe) => recipe.id),
+    grabTile(id, tile, e.clientX, e.clientY)
+  }
+
+  /** Keeps the held tile under the cursor and recomputes which slot it is over. */
+  function trackPointer(e: ReactPointerEvent<HTMLElement>) {
+    if (!heldId) return
+    setPointer({ x: e.clientX, y: e.clientY })
+    moveHeldTo(e.clientX, e.clientY)
+  }
+
+  // A press starts a short timer; letting it run picks the tile up. This is how
+  // a click can keep meaning "open the recipe" while a hold means "reorder" —
+  // otherwise the two gestures would be the same click and one would have to
+  // give way.
+  const holdTimerRef = useRef<number | null>(null)
+  function startHoldTimer(e: ReactPointerEvent<HTMLElement>, id: string) {
+    if (e.button !== 0 || heldId) return
+    clearHoldTimer()
+    // Read everything off the event now. A React synthetic event's
+    // `currentTarget` is cleared once the handler returns, so reading it from
+    // the timer callback would find null and the grab would do nothing.
+    const x = e.clientX
+    const y = e.clientY
+    const tile = (e.currentTarget as HTMLElement).closest('[data-recipe-id]') as HTMLElement | null
+    holdTimerRef.current = window.setTimeout(() => {
+      holdTimerRef.current = null
+      if (tile) grabTile(id, tile, x, y)
+    }, 220)
+  }
+  function clearHoldTimer() {
+    if (holdTimerRef.current !== null) {
+      window.clearTimeout(holdTimerRef.current)
+      holdTimerRef.current = null
     }
   }
 
-  function moveDrag(e: ReactPointerEvent<HTMLElement>) {
-    const drag = dragRef.current
-    if (!drag || e.pointerId !== drag.pointerId) return
+  /**
+   * Works out the slot from the cursor's position against the *unheld* tiles.
+   *
+   * Deliberately not `elementFromPoint`: the grid reflows as the preview
+   * changes, so whatever sits under the cursor moves as a consequence of the
+   * move being decided from it. That feedback is what made the old drag jitter
+   * in two dimensions. Comparing against tile centres is stable — the centres
+   * are recomputed from the current preview, but a slot only changes when the
+   * cursor genuinely crosses a midpoint.
+   */
+  function moveHeldTo(clientX: number, clientY: number) {
+    const ids = previewRef.current
+    if (!ids || !heldId) return
 
-    if (!drag.active) {
-      if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 5) return
-      drag.active = true
-      previewRef.current = drag.order
-      setPreviewIds(drag.order)
-      setDragId(drag.id)
-      try {
-        drag.tile.setPointerCapture(e.pointerId)
-      } catch {
-        // pointer capture is only a convenience; dragging still works without it
+    const tiles = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-recipe-id]'),
+    ).filter((el) => el.dataset.recipeId !== heldId)
+
+    if (tiles.length === 0) return
+
+    // Slot = the first tile the cursor comes before, reading in grid order.
+    // "Comes before" means: in an earlier row, or the same row and to the left.
+    // Rows are compared by their vertical band, so a cursor sitting inside a row
+    // never counts as being before it — that was the bug that let a tile jump a
+    // whole row too early.
+    //
+    // A cursor past the end of a row belongs after that row, not at the end of
+    // the grid, so the last matching row is remembered and used when nothing
+    // breaks the loop.
+    const withoutHeld = ids.filter((id) => id !== heldId)
+    let slot = withoutHeld.length
+    let lastRowEnd = 0
+    for (let i = 0; i < tiles.length; i++) {
+      const r = tiles[i].getBoundingClientRect()
+      const cx = r.left + r.width / 2
+      const sameRowAsCursor = clientY >= r.top && clientY <= r.bottom
+      if (sameRowAsCursor) lastRowEnd = i + 1
+      if (clientY < r.top) {
+        // The cursor is above this tile's row: the recipe belongs here.
+        slot = i
+        break
       }
-      window.getSelection()?.removeAllRanges()
+      if (sameRowAsCursor && clientX < cx) {
+        // Same row, to the left of this tile's middle: belongs here.
+        slot = i
+        break
+      }
     }
+    // The loop fell through with the cursor still inside a row: it is to the
+    // right of every tile in it, so the recipe goes at that row's end.
+    if (slot === withoutHeld.length && lastRowEnd > 0) slot = lastRowEnd
 
-    const target = (
-      document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
-    )?.closest('[data-recipe-id]') as HTMLElement | null
-    const overId = target?.dataset.recipeId
-    if (!overId || overId === drag.id) return
-
-    const ids = previewRef.current ?? drag.order
-    const from = ids.indexOf(drag.id)
-    const to = ids.indexOf(overId)
-    if (from < 0 || to < 0 || from === to) return
-    const next = [...ids]
-    next.splice(from, 1)
-    next.splice(to, 0, drag.id)
+    const from = ids.indexOf(heldId)
+    if (from < 0) return
+    const next = [...withoutHeld]
+    next.splice(slot, 0, heldId)
+    if (next.join() === ids.join()) return
     previewRef.current = next
     setPreviewIds(next)
   }
 
-  function finishDrag(e: ReactPointerEvent<HTMLElement>, commit: boolean) {
-    const drag = dragRef.current
-    if (!drag || e.pointerId !== drag.pointerId) return
-    dragRef.current = null
-    if (!drag.active) return
-
-    const ids = previewRef.current ?? drag.order
+  function placeHeld() {
+    const ids = previewRef.current
+    const id = heldId
+    setHeldId(null)
+    setPointer(null)
+    setTileSize(null)
     previewRef.current = null
     setPreviewIds(null)
-    setDragId(null)
-    // A drag ends with a click; don't let it also open the recipe.
-    suppressClickRef.current = true
-    window.setTimeout(() => {
-      suppressClickRef.current = false
-    }, 0)
-
-    if (!commit) return
-    void reorderRecipes(viewId, ids)
+    orderAtGrabRef.current = null
+    if (ids && id) void reorderRecipes(viewId, ids)
   }
+
+  function cancelHold() {
+    const original = orderAtGrabRef.current
+    setHeldId(null)
+    setPointer(null)
+    setTileSize(null)
+    previewRef.current = null
+    setPreviewIds(null)
+    orderAtGrabRef.current = null
+    // Nothing to undo if the tile never moved; only write when it did.
+    if (original && original.join() !== shown.map((r) => r.id).join()) {
+      void reorderRecipes(viewId, original)
+    }
+  }
+
+  // Esc backs out of a pick-up. Registered only while a tile is held.
+  useEffect(() => {
+    if (!heldId) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        cancelHold()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [heldId, shown])
 
   return (
     <div className="px-4 sm:px-6 py-5 max-w-6xl mx-auto w-full">
@@ -289,64 +385,143 @@ export function CategoryPage({
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-          {shown.map((recipe, index) => (
+        <div
+          className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4"
+          onPointerMove={trackPointer}
+        >
+          {shown.map((recipe, index) => {
+            const held = heldId === recipe.id
+            return (
             <div
               key={recipe.id}
               data-recipe-id={recipe.id}
               className={clsx(
-                'relative touch-pan-y select-none',
-                dragId === recipe.id && 'opacity-60 z-10',
+                'relative touch-pan-y select-none transition-transform duration-150',
+                held && 'z-10',
               )}
-              onPointerDown={(e) => beginDrag(e, recipe.id)}
-              onPointerMove={moveDrag}
-              onPointerUp={(e) => finishDrag(e, true)}
-              onPointerCancel={(e) => finishDrag(e, false)}
               onClickCapture={(e) => {
-                // The click that ends a drag must not also open the recipe.
-                if (suppressClickRef.current) {
+                // While a tile is held the overlay below owns the click, so a
+                // click reaching a tile here is always "open the recipe". The
+                // only exception is the held tile itself, whose click must not
+                // open it.
+                if (heldId === recipe.id) {
                   e.preventDefault()
                   e.stopPropagation()
                 }
               }}
+              onPointerDown={(e) => startHoldTimer(e, recipe.id)}
+              onPointerUp={clearHoldTimer}
+              onPointerLeave={clearHoldTimer}
+              onPointerCancel={clearHoldTimer}
+              onKeyDown={(e) => {
+                if (heldId === recipe.id && e.key === 'Enter') {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  placeHeld()
+                }
+              }}
             >
-              {/* Purely a visual handle: the tile itself carries the drag
-                  handlers, so a press on the grip works without the event
-                  bubbling through a second set of handlers. */}
-              <span
-                aria-hidden
-                className="absolute top-2 right-2 z-10 rounded-lg p-1 opacity-0 group-hover:opacity-100 bg-black/35 text-white cursor-grab active:cursor-grabbing transition-opacity pointer-events-none"
-              >
-                <GripVertical size={15} />
-              </span>
-              {/* Dragging is the natural gesture, but it is mouse-only. This
-                  gives the same result from the keyboard, which is also the
-                  only way to reorder on a touch device without dragging. */}
-              {index > 0 && (
-                <button
-                  type="button"
-                  aria-label={`Move “${recipe.title}” to the top`}
-                  title="Move to the top"
-                  tabIndex={0}
-                  className="absolute bottom-2 right-2 z-10 rounded-lg px-2 py-1 text-xs opacity-0 group-hover:opacity-100 focus-visible:opacity-100 bg-black/35 text-white hover:bg-black/55 transition-opacity"
-                  onClick={(e) => {
+              {held && (
+                // The vacated slot. Kept in the flow so the grid stays put and
+                // the other tiles visibly close in around it, which is the cue
+                // for where the recipe will land.
+                <div
+                  aria-hidden
+                  className="absolute inset-0 rounded-2xl border-2 border-dashed border-brand/50 bg-brand/5"
+                />
+              )}
+              <div className={clsx(held && 'invisible')}>
+                {/* The grip is a shortcut: pressing it picks the tile up
+                    immediately, with no hold, so there is always an unambiguous
+                    way to grab without waiting. */}
+                <span
+                  aria-hidden
+                  onPointerDown={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
-                    const ids = shown.map((r) => r.id)
-                    const from = ids.indexOf(recipe.id)
-                    if (from < 1) return
-                    ids.splice(from, 1)
-                    ids.unshift(recipe.id)
-                    void reorderRecipes(viewId, ids)
+                    clearHoldTimer()
+                    grabOrPlace(e, recipe.id)
                   }}
+                  className={clsx(
+                    'absolute top-2 right-2 z-10 rounded-lg p-1 bg-black/35 text-white transition-opacity',
+                    held ? 'opacity-100 cursor-grabbing' : 'opacity-0 group-hover:opacity-100 cursor-grab',
+                  )}
                 >
-                  Move to top
-                </button>
-              )}
-              <RecipeCard recipe={recipe} color={hex} />
+                  <GripVertical size={15} />
+                </span>
+                {/* Reordering by hand is mouse-only; this gives the same result
+                    from the keyboard, which is also the only way on a touch
+                    device with no second click available. */}
+                {index > 0 && !held && (
+                  <button
+                    type="button"
+                    aria-label={`Move “${recipe.title}” to the top`}
+                    title="Move to the top"
+                    tabIndex={0}
+                    className="absolute bottom-2 right-2 z-10 rounded-lg px-2 py-1 text-xs opacity-0 group-hover:opacity-100 focus-visible:opacity-100 bg-black/35 text-white hover:bg-black/55 transition-opacity"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      const ids = shown.map((r) => r.id)
+                      const from = ids.indexOf(recipe.id)
+                      if (from < 1) return
+                      ids.splice(from, 1)
+                      ids.unshift(recipe.id)
+                      void reorderRecipes(viewId, ids)
+                    }}
+                  >
+                    Move to top
+                  </button>
+                )}
+                <RecipeCard recipe={recipe} color={hex} />
+              </div>
             </div>
-          ))}
+            )
+          })}
         </div>
+      )}
+
+      {/* The picked-up tile, pinned to the cursor and following it. Rendered
+          outside the grid so it is not clipped by it, and above everything
+          else so it reads as being carried. */}
+      {heldId &&
+        pointer &&
+        tileSize &&
+        (() => {
+          const recipe = shown.find((r) => r.id === heldId)
+          if (!recipe) return null
+          return (
+            <div
+              aria-hidden
+              className="fixed z-50 pointer-events-none"
+              style={{
+                left: pointer.x - tileSize.w / 2,
+                top: pointer.y - tileSize.h / 2,
+                width: tileSize.w,
+                height: tileSize.h,
+              }}
+            >
+              <div className="h-full w-full rotate-2 scale-[1.04] shadow-2xl rounded-2xl overflow-hidden ring-2 ring-brand/60 bg-surface">
+                <RecipeCard recipe={recipe} color={hex} />
+              </div>
+            </div>
+          )
+        })()}
+
+      {/* While a tile is held, this covers the page: it tracks the pointer, and
+          a click on it places the recipe. It has to own the click because the
+          tile under the cursor is not the one being carried — the user is
+          aiming at a gap. */}
+      {heldId && (
+        <div
+          aria-hidden
+          className="fixed inset-0 z-40 cursor-copy"
+          onPointerMove={trackPointer}
+          onPointerDown={(e) => {
+            e.preventDefault()
+            placeHeld()
+          }}
+        />
       )}
 
       {/* floating add button on phones */}

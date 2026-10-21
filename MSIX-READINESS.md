@@ -134,7 +134,7 @@ Start menu, packaged, without anything being signed.
 To remove it again:
 
 ```powershell
-Get-AppxPackage 1234Publisher.TheRecipeApp | Remove-AppxPackage
+Get-AppxPackage LeveilleApps.TheRecipeApp | Remove-AppxPackage
 ```
 
 This is the cheapest way to catch a manifest or staging mistake, so do it
@@ -163,6 +163,37 @@ src-tauri/target/msix/TheRecipeApp_0.1.0.0_x64.msix
 
 The package is intentionally unsigned. Upload that file to the **Packages**
 page in Partner Center; Microsoft signs it during publishing.
+
+### Installing an unsigned `.msix` will not work
+
+Double-clicking an unsigned package opens App Installer with **Install greyed
+out**, and nothing on the screen says why. This is not a manifest problem — it
+is App Installer refusing to install something it cannot verify. A `.msix` from
+the Store is signed by Microsoft; an unsigned one has no signature at all.
+
+Two ways round it, and they are not interchangeable:
+
+- **Test it now, unsigned** — use `-Register` above. It bypasses App Installer
+  entirely and needs Developer Mode rather than a certificate.
+- **Get a double-clickable installer, locally** — `-Package -Sign` packs and
+  then signs with a self-signed certificate whose subject is copied from the
+  manifest publisher:
+
+  ```powershell
+  pwsh scripts/build-msix.ps1 -Package -Sign
+  ```
+
+  The certificate has to be trusted before Windows will accept the package, and
+  `-Sign` prints the one command that does it (an elevated
+  `Import-Certificate` into `LocalMachine\TrustedPeople`).
+
+  This is **local testing only**. A self-signed certificate is not trusted on
+  anyone else's machine, so a package signed this way cannot be distributed.
+  That is the whole reason submissions are uploaded unsigned.
+
+The publisher subject and the certificate subject must match exactly. Windows
+reports a mismatch as a generic install failure, so `-Sign` reads the subject
+straight from `identity.json` rather than taking it as an argument.
 
 ## Submission checklist
 
