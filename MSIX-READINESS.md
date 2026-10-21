@@ -211,6 +211,32 @@ Two ways round it, and they are not interchangeable:
   is a different problem from this one. A greyed-out button is always
   trust/signature, never the manifest.
 
+## Windows-only behaviour that is not a bug in the app code
+
+Two things behave differently on Windows for reasons that live in the webview
+rather than in this repository. Both have caught a real test round.
+
+**Tiles would not reorder.** The grid reorder gesture is built on pointer events,
+and Tauri installs its own drag-and-drop handler on the webview to generate
+`DragDropEvent`s. On Windows that handler replaces WebView2's own, and the
+replacement consumes the pointer traffic the gesture runs on, so a tile could
+never be picked up. macOS and Linux never see it. `app.windows[0].dragDropEnabled`
+is therefore `false`; the app accepts no dropped files, so the handler was
+earning nothing. Tauri's config reference states the requirement directly:
+"Disabling it is required to use HTML5 drag and drop on the frontend on Windows
+since we replace the drag drop handler of WebView2".
+
+**The bookmarklet has to be installed before it exists.** The app does not ship a
+browser button, and it cannot: browsers do not let an app add a bookmark. Settings
+> General > "Browser button" opens a page whose draggable link the user has to drag
+to their bookmarks bar. Until that has happened there is nothing to click on a
+recipe page, and the app has no way to tell the difference between "not installed
+yet" and "installed but broken". The MSI does register the scheme — the protocol
+keys are in the package as `Software\Classes\recipist` with `URL Protocol`,
+`DefaultIcon` and `shell\open\command` — so a failure after that point is worth
+investigating in the browser's prompt, not in the app.
+
+
 
 ## Submission checklist
 
