@@ -55,5 +55,12 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    watch: {
+      // The Tauri build writes thousands of .dll/.pdb files into
+      // src-tauri/target while the dev server is running. Watching them
+      // crashes the watcher with EBUSY on Windows (locked files), so the
+      // Rust build directory is kept out of the watch set.
+      ignored: ['**/src-tauri/target/**', '**/src-tauri/gen/**'],
+    },
   },
 })
