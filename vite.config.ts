@@ -1,11 +1,18 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import pkg from './package.json'
 
 // Capacitor / Tauri load built assets from the local filesystem, so relative
 // asset paths keep the same bundle working on every target.
 export default defineConfig({
   base: './',
+  // The About pane shows a version. Reading it from package.json here means a
+  // release only has to bump one file for the app to report the right number,
+  // instead of the string drifting quietly behind the shipped build.
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   plugins: [
     react(),
     VitePWA({

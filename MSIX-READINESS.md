@@ -96,7 +96,7 @@ Every Windows build attaches it as its own artifact, separate from the 418 MB
 installer bundle:
 
 ```
-windows-store-msix   →   TheRecipeApp_0.1.0.0_x64.msix
+windows-store-msix   →   TheRecipeApp_0.2.0.0_x64.msix
 ```
 
 Download it from the run's summary page and upload it to Partner Center. This

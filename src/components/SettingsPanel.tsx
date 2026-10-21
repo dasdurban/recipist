@@ -513,7 +513,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
             )}
 
             {pane === 'about' && (
-              <Section title="About The Recipe App" subtitle="Version 0.1.0">
+              <Section title="About The Recipe App" subtitle={`Version ${__APP_VERSION__}`}>
                 <p className="text-sm text-content-muted leading-relaxed">
                   The Recipe App keeps all of your recipes on your device first. Import from a link or a
                   photo, estimate calories and health, and back up to the cloud on your terms. It runs
