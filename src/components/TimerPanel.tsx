@@ -36,7 +36,7 @@ function useRemaining() {
 const FACE_R = 43.5
 const TICKS = Array.from({ length: 60 }, (_, i) => i)
 const LABELS = Array.from({ length: 12 }, (_, i) => ({ value: i * 5, deg: i * 30 }))
-const PRESETS = [1, 2, 3, 5, 10, 15, 20, 25, 30, 45, 60]
+const PRESETS = [15, 1, 2, 3, 5, 10, 20, 25, 30, 45, 60]
 
 export function TimerPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (

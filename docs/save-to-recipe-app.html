@@ -156,7 +156,7 @@ when it was renamed. Delete it and drag a fresh one from this page.</p>
       "javascript:(function(){" +
       "var u=location.href;" +
       "if(!/^https?:/i.test(u)){alert('This page is not a web address, so there is no recipe to send.');return;}" +
-      "location.href='recipist://import?url='+encodeURIComponent(u);" +
+      "location.href='https://dasdurban.github.io/recipist/bookmark.html?url='+encodeURIComponent(u);" +
       "})()";
     var link = document.getElementById('bm');
     link.setAttribute('href', source);

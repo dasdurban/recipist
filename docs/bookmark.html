@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Save to Recipe App</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+<link rel="shortcut icon" href="favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<meta name="theme-color" content="#dc2626">
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    max-width: 32rem;
+    margin: 0 auto;
+    padding: 3rem 1.25rem;
+    font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    text-align: center;
+    background: #fff;
+    color: #111;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #1a1a1a; color: #e8e8e8; }
+  }
+  .logo { width: 72px; height: 72px; margin: 0 auto 1.5rem; }
+  h1 { font-size: 1.25rem; margin: 0 0 .75rem; }
+  p { color: #666; margin: 0; }
+  @media (prefers-color-scheme: dark) {
+    p { color: #aaa; }
+  }
+</style>
+</head>
+<body>
+  <img class="logo" src="favicon.svg" alt="The Recipe App">
+  <h1>Opening in The Recipe App…</h1>
+  <p>If the app doesn't open, make sure it's installed.</p>
+  <script>
+    (function() {
+      try {
+        var params = new URLSearchParams(location.search);
+        var url = params.get('url') || document.referrer || '';
+        if (!/^https?:/i.test(url)) {
+          document.querySelector('h1').textContent = "That page isn't shareable";
+          document.querySelector('p').textContent = "This page only works from a recipe page.";
+          return;
+        }
+        location.replace('recipist://import?url=' + encodeURIComponent(url));
+      } catch (e) {
+        document.querySelector('h1').textContent = "Couldn't open the app";
+        document.querySelector('p').textContent = "Make sure The Recipe App is installed.";
+      }
+    })();
+  </script>
+</body>
+</html>
