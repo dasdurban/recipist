@@ -9,7 +9,7 @@
  */
 import { WebviewWindow, getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { currentMonitor } from '@tauri-apps/api/window'
-import { isTauri, TIMER_WINDOW_LABEL, TIMER_PANEL_HEIGHT_EVENT } from './native'
+import { isTauri, TIMER_WINDOW_LABEL } from './native'
 
 /**
  * The window is sized to the panel, not the other way round.
