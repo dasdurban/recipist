@@ -57,6 +57,27 @@ if ! command -v npm >/dev/null 2>&1; then
 fi
 echo "  npm:  $(npm --version)"
 
+# Rust compiles the binary. Without it the build fails at the compile step, long
+# after the Apple-specific checks have passed, which reads as a signing or config
+# problem rather than a missing toolchain.
+if ! command -v cargo >/dev/null 2>&1; then
+  die "cargo is not on PATH.
+     The Rust binary is compiled with it, so the build cannot proceed.
+     Install Rust, then source the environment it sets up:
+       curl https://sh.rustup.rs -sSf | sh -s -- -y
+       source \"\$HOME/.cargo/env\"
+     Then confirm with:  cargo --version
+     (rustup installs to ~/.cargo/bin, which is not on PATH by default.)"
+fi
+echo "  cargo: $(cargo --version)"
+
+if ! command -v rustc >/dev/null 2>&1; then
+  die "rustc is not on PATH (cargo is, at $(command -v cargo)).
+     rustup installs both together, so a split like this usually means PATH was
+     assembled by hand rather than by 'source \$HOME/.cargo/env'."
+fi
+echo "  rustc: $(rustc --version)"
+
 # A checkout with no node_modules cannot build, and `npx tauri` would otherwise
 # try to fetch the CLI from the network mid-build.
 if [ ! -d node_modules ]; then
