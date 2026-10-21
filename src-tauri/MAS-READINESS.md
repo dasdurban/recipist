@@ -14,9 +14,15 @@ unaffected by everything here.
 | Signing + packaging config | ✅ `src-tauri/tauri.mas.conf.json` |
 | Build script | ✅ `scripts/build-mas.sh` |
 | Privacy policy | ✅ Written, and live |
-| **Xcode 26 or later installed** | ❌ **Blocked — see below** |
+| Xcode 26 or later installed | ✅ On the MacBook Neo (Xcode 27 / macOS 27) |
 | Data migration for the sandbox container | ✅ Not needed — shipping as a fresh start |
+| Apple Distribution certificate | ❓ **The remaining unknown — see below** |
 | App Store Connect listing | ❌ Not started |
+
+The earlier Xcode blocker is resolved: the build now happens on a MacBook Neo
+running macOS 27 with Xcode 27, which satisfies the "Xcode 26 or later"
+requirement. This machine (macOS 15.7, Command Line Tools only) can still build
+and test the direct-download `.dmg`, but cannot produce a submittable bundle.
 
 ## Privacy policy
 
@@ -36,23 +42,29 @@ repo. Editing either file on `main` redeploys the page automatically
 > accepts pasted text), so if that happens, host `docs/` elsewhere
 > (Cloudflare Pages, Netlify) or upgrade the plan.
 
-## Blocker 1: Xcode
+## The certificate, and where to build
 
-The App Store requires the app to be built with **Xcode 26 or later**. This
-machine has only the Command Line Tools:
+The App Store requires the app to be built with **Xcode 26 or later**. That
+requirement is met on the build machine (MacBook Neo, macOS 27, Xcode 27), and
+`scripts/build-mas.sh` checks it first and stops with instructions if it is not.
 
+Note that the script compares against `26` with `-lt`, so any *newer* Xcode
+passes silently. If App Store Connect ever tightens or shifts its accepted SDK,
+the build will succeed locally and the upload will be rejected — the check is a
+floor, not a guarantee.
+
+The remaining unknown is the **Apple Distribution certificate**, which the script
+requires before it starts:
+
+```bash
+security find-identity -v -p codesigning | grep "Apple Distribution"
 ```
-xcode-select -p  ->  /Library/Developer/CommandLineTools
-```
 
-`scripts/build-mas.sh` checks this first and stops with instructions. Fix:
-
-1. Install Xcode (from the App Store or developer.apple.com).
-2. `sudo xcode-select -s /Applications/Xcode.app`
-3. `xcodebuild -version` should print 26.x or later.
-
-Note: this machine is on macOS 15.7.7. If Xcode 26 requires a newer macOS, an
-OS upgrade is a prerequisite.
+Create it with Xcode → Settings → Accounts → (team) → Manage Certificates… → **+**
+→ **Apple Distribution**. Let Xcode generate it rather than importing a `.cer`:
+a certificate without its private key fails signing with `errSecInternalComponent`,
+which is why the script looks for the identity before building rather than
+after.
 
 ## Blocker 2: the sandbox moves the data directory
 
@@ -125,12 +137,26 @@ bundled `.dylib`/`.framework` — verified against the built app), so one manife
 covers everything. If a future dependency ships its own dynamic library, it
 needs its own manifest.
 
-### One open question about `E174.1`
+### `E174.1` (disk space) was removed, not kept
 
-`E174.1` requires that the app *visibly* behaves differently based on disk
-space. If nothing in the UI changes when space is low, this declaration is not
-accurate for a dependency doing the check silently. Confirm the app surfaces a
-"storage is full" message before submitting, or drop this category.
+An earlier revision declared `DiskSpace`/`E174.1` on the assumption that the app
+checks free space before writing a backup. It does not. No disk-space API appears
+anywhere in the source, and `nm -u` on the release binary imports none of
+`statfs`, `statvfs`, `getattrlist` or `volumeAvailableCapacity`.
+
+`E174.1` also requires the app to *visibly* behave differently based on disk
+space, which nothing here does. Declaring a category the binary never calls
+invites a review question with no good answer, so the manifest omits it. The
+reasoning is recorded inline in `PrivacyInfo.xcprivacy` so it is not
+re-added by reflex.
+
+Re-add only if a genuine check is introduced — and then only alongside a
+user-visible reaction to low space.
+
+A mismatch in either direction is a rejection: a declared-but-unused category
+draws a question, and a used-but-undeclared one is an automatic `ITMS-91053`.
+`scripts/build-mas.sh` greps `dist/` for `navigator.storage.estimate()` and warns
+if it reappears.
 
 ## Building and submitting
 
@@ -147,10 +173,39 @@ Then:
 
 1. Upload the **`.app`** (not a `.dmg`) with Transporter or `xcrun altool`.
 2. In App Store Connect, complete the listing: description, screenshots,
-   category, age rating.
-3. **Add the privacy policy URL.** Policy requires one for desktop apps; you
-   have none yet.
+   category, age rating. Copy is drafted in `MAS-LISTING.md`.
+3. **Add the privacy policy URL** (policy requires one for desktop apps):
+   `https://dasdurban.github.io/recipist/privacy-policy.html`.
 4. Submit for review.
+
+### Version numbers, before every upload
+
+`CFBundleShortVersionString` and `CFBundleVersion` must each be **higher than
+every build already uploaded to App Store Connect** — including builds that were
+rejected, and builds that were later deleted. Reusing a number fails at upload
+with an error that does not explain itself.
+
+`scripts/build-mas.sh` does **not** check this, because it cannot know what has
+been uploaded. Raising the version is manual, and it spans five places that must
+agree or the About dialog drifts from the bundle:
+
+```
+package.json                          version
+package-lock.json                     two references
+src-tauri/tauri.conf.json             version  (Tauri stamps the bundle from this)
+src-tauri/Cargo.toml                  version
+src-tauri/Cargo.lock                  recipist entry
+```
+
+Regenerate the lockfiles rather than editing them by hand:
+
+```bash
+npm install --package-lock-only --no-audit --no-fund
+(cd src-tauri && cargo update -p recipist)
+```
+
+`npm ci` in CI fails outright if `package.json` and `package-lock.json`
+disagree, which is the intended safety net rather than an obstacle.
 
 ## Constraints to remember
 
