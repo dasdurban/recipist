@@ -18,6 +18,13 @@
 import { isTauri } from './native'
 
 /**
+ * Set once the cleanup has run, so the desktop app and the native side (which
+ * has to do the same job for a page that is itself the stale copy) do not
+ * both reload the window.
+ */
+const PURGE_MARKER = '__recipist_service_worker_purged'
+
+/**
  * Unregisters any service worker and drops its caches.
  *
  * Returns true when the page is being reloaded to shed a stale bundle, in
@@ -27,6 +34,7 @@ import { isTauri } from './native'
 export async function purgeServiceWorker(): Promise<boolean> {
   if (!isTauri()) return false
   if (!('serviceWorker' in navigator)) return false
+  if (window.sessionStorage.getItem(PURGE_MARKER)) return false
 
   let registrations: readonly ServiceWorkerRegistration[] = []
   try {
@@ -51,6 +59,8 @@ export async function purgeServiceWorker(): Promise<boolean> {
   const wasControlled = !!navigator.serviceWorker.controller
 
   await Promise.all(registrations.map((r) => r.unregister().catch(() => {})))
+
+  window.sessionStorage.setItem(PURGE_MARKER, '1')
 
   if (wasControlled) {
     window.location.reload()
