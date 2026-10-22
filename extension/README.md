@@ -27,10 +27,11 @@ with the app icons, from the same polygon source, so the mark never drifts.
 They are deliberately *not* the app icons scaled down. A toolbar icon is drawn
 at 16px next to other 16px icons, and at app-icon proportions the tomato landed
 at about 60% of the canvas — a few pixels of red in a field of white. The
-extension variant fits the mark to the tile instead of the roomier viewBox and
-lets the tile run nearly edge to edge, which puts the tomato near 84%. 16 and 32
-share one framing (the toolbar uses 32 on retina); 48 and 128 are slightly
-airier for the extensions page and store listing.
+extension variant fits the mark to its own bounding box instead of the roomier
+viewBox and lets the white tile run edge to edge, so the tomato fills **95% of
+the canvas**. All four sizes use the same framing, so the button does not change
+size between a normal and a retina screen, or between the toolbar and the
+extensions page.
 
 Regenerate with:
 

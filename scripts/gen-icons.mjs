@@ -209,12 +209,15 @@ const SHAPE_BOUNDS = (() => {
 })()
 
 /**
- * The icon with the mark scaled to the tile rather than to the viewBox.
+ * The icon with the mark scaled against the canvas rather than the viewBox.
  *
- * `bgScale` is the white rounded square as a fraction of the canvas; `markScale`
- * is the tomato as a fraction of that square.
+ * `bgScale` is the white rounded square as a fraction of the canvas, and
+ * `markFraction` is the tomato as a fraction of the canvas — measured against
+ * the canvas on purpose, because "95% of the icon" is how the size is actually
+ * discussed, and expressing it against the tile leaves the two related in a way
+ * nobody can read off the numbers.
  */
-function renderFitted(size, bgScale, markScale) {
+function renderFitted(size, bgScale, markFraction) {
   const W = size
   const H = size
   const dst = Buffer.alloc(W * H * 4)
@@ -245,10 +248,10 @@ function renderFitted(size, bgScale, markScale) {
   }
   composite(dst, cov, W, H, WHITE)
 
-  // The mark keeps its own aspect ratio and is centred in the tile.
+  // The mark keeps its own aspect ratio and is centred on the canvas.
   const boxW = SHAPE_BOUNDS.maxX - SHAPE_BOUNDS.minX
   const boxH = SHAPE_BOUNDS.maxY - SHAPE_BOUNDS.minY
-  const target = bgSize * markScale
+  const target = size * markFraction
   const scale = target / Math.max(boxW, boxH)
   const drawnW = boxW * scale
   const drawnH = boxH * scale
@@ -314,10 +317,10 @@ function downsample(src, srcSize, factor) {
   return out
 }
 
-function writeExtensionIcon(path, size, bgScale, markScale) {
+function writeExtensionIcon(path, size, bgScale, markFraction) {
   const started = Date.now()
   const factor = size <= 48 ? 8 : 4
-  const big = renderFitted(size * factor, bgScale, markScale)
+  const big = renderFitted(size * factor, bgScale, markFraction)
   const png = encodePng(size, size, downsample(big, size * factor, factor))
   writeFileSync(path, png)
   console.log('wrote', path.replace(root + '/', ''), size + 'x' + size, (png.length / 1024).toFixed(1) + 'kb', (Date.now() - started) + 'ms')
@@ -336,18 +339,17 @@ write(join(root, 'src-tauri', 'icons', 'icon-macos-1024.png'), 1024, true)
 // Browser extension toolbar icons.
 //
 // These are not the app icons shrunk down. A toolbar icon is drawn at 16px and
-// sits in a strip of other 16px icons, so the tile is nearly edge-to-edge and
-// the mark is fitted to the tile instead of the roomier viewBox. At app icon
-// proportions the tomato came out around 60% of the canvas, which at 16px is a
-// few pixels of red in a field of white; this puts it near 84%.
+// sits in a strip of other 16px icons, so the tile is edge to edge and the
+// tomato fills 95% of the canvas. At app icon proportions the tomato came out
+// around 60%, which at 16px is a few pixels of red in a field of white.
 //
-// 16 and 32 are what the toolbar actually uses (32 on retina), so they share
-// one framing. 48 and 128 appear in the extensions page and the store listing,
-// where a little more air reads better.
+// All four sizes use the same framing so the button does not change size
+// between a normal and a retina screen, or between the toolbar and the
+// extensions page.
 const extensionIconDir = join(root, 'extension', 'icons')
 mkdirSync(extensionIconDir, { recursive: true })
-writeExtensionIcon(join(extensionIconDir, 'icon-16.png'), 16, 0.98, 0.87)
-writeExtensionIcon(join(extensionIconDir, 'icon-32.png'), 32, 0.98, 0.87)
-writeExtensionIcon(join(extensionIconDir, 'icon-48.png'), 48, 0.96, 0.84)
-writeExtensionIcon(join(extensionIconDir, 'icon-128.png'), 128, 0.94, 0.82)
+writeExtensionIcon(join(extensionIconDir, 'icon-16.png'), 16, 1, 0.95)
+writeExtensionIcon(join(extensionIconDir, 'icon-32.png'), 32, 1, 0.95)
+writeExtensionIcon(join(extensionIconDir, 'icon-48.png'), 48, 1, 0.95)
+writeExtensionIcon(join(extensionIconDir, 'icon-128.png'), 128, 1, 0.95)
 console.log('done')
