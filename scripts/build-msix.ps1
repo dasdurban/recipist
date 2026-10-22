@@ -22,9 +22,12 @@
 #               uploaded unsigned and Microsoft re-signs them.
 #
 # Usage:
-#   pwsh scripts/build-msix.ps1 -Register
-#   pwsh scripts/build-msix.ps1 -Package
-#   pwsh scripts/build-msix.ps1 -Package -Sign
+#   powershell scripts/build-msix.ps1 -Register
+#   powershell scripts/build-msix.ps1 -Package
+#   powershell scripts/build-msix.ps1 -Package -Sign
+#
+# Windows PowerShell 5.1 is what -Register needs, because Add-AppxPackage only
+# exists in the Appx module there. The script itself runs under pwsh too.
 #
 # Run on Windows, after `npx tauri build` has produced the release binary.
 
@@ -113,6 +116,18 @@ if ($Package -and [string]::IsNullOrWhiteSpace($makeAppxExe)) {
 }
 
 # --- stage -----------------------------------------------------------------
+
+# A package registered from the staging folder keeps a lock on its files, and
+# Windows refuses to remove a folder that holds a running package's contents.
+# So a second run after a -Register test fails on the very first step, with a
+# permission error that looks like a build problem. Remove the registration
+# first; it is a development registration of this very folder, so nothing is
+# lost by taking it down.
+$registeredFromStaging = Get-AppxPackage | Where-Object { $_.InstallLocation -eq $staging }
+if ($registeredFromStaging) {
+  Write-Host "Removing the package registered from the staging folder, so it can be re-staged."
+  $registeredFromStaging | Remove-AppxPackage
+}
 
 if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
 New-Item -ItemType Directory -Path $staging -Force | Out-Null
