@@ -44,20 +44,29 @@ identical, because the app-icon path is untouched.
 ## How the hand-off works
 
 On click the service worker reads the active tab's URL, rejects anything that
-is not `http` or `https`, and sets `location.href` on the page to the deep link.
-That is exactly what the bookmarklet does, and it is what has already been
-proven to reach the app on all three desktop platforms.
+is not `http` or `https`, and navigates the tab to the deep link.
 
-Doing it from inside the page matters: navigating the tab itself with
-`chrome.tabs.update` leaves the user on a blank page after the app opens, while
-setting the location lets the browser keep showing the recipe.
+The first version did this by injecting `location.href = …` into the page, on
+the reasoning that it is exactly what the bookmarklet does and the bookmarklet
+works. It does not work from an extension: **Chrome requires a user gesture for
+an external-protocol navigation started by a page**, and the click happened in
+browser chrome, not in the page. Injected script carries no activation, so
+Chrome drops the navigation silently — no error, no prompt, nothing. That is a
+particularly confusing failure, so it is worth knowing about.
+
+An extension-initiated tab navigation is not subject to that rule, which is why
+`chrome.tabs.update` is the primary route. `chrome.tabs.create` and page
+injection remain as fallbacks for builds that refuse one or the other.
+
+The page stays where it was: the browser intercepts the unknown scheme and hands
+it to the OS rather than completing the navigation.
 
 The two permissions are the minimum for that:
 
 - `activeTab` — read the address of the tab the user clicked on, and nothing
   else. No host permissions, so the extension cannot see other tabs or run
   anywhere on its own.
-- `scripting` — write that one assignment into the page.
+- `scripting` — only used by the last-resort fallback.
 
 ## Load it locally (Chrome, Edge, Brave, Vivaldi)
 

@@ -8,12 +8,6 @@
  * browsers give those bookmarks a generic symbol and offer no way to set one.
  * A toolbar button has a real icon from the manifest, so this is the version
  * that looks like part of the product.
- *
- * The hand-off is deliberately the same one the bookmarklet performs — set
- * `location.href` on the page — because that is the route already proven to
- * reach the app on macOS, Windows and Linux. Writing the location from inside
- * the page keeps the browser showing the recipe instead of navigating away to
- * a blank tab, which is what `tabs.update` would do.
  */
 
 /** The deep link route the app accepts. Anything else is ignored by the app. */
@@ -66,6 +60,40 @@ async function saveCurrentPage(tab) {
 
   const target = `${IMPORT_ROUTE}?ref=${SOURCE}&url=${encodeURIComponent(tab.url)}`
 
+  // Navigate the tab from the extension, not from inside the page.
+  //
+  // Running `location.href = …` in the page was the original approach, because
+  // it is exactly what the bookmarklet does. It does not work here: Chrome
+  // requires a user gesture for an external-protocol navigation started by a
+  // page, and this click happened in browser chrome, not in the page. Injected
+  // script carries no activation, so Chrome drops the navigation silently —
+  // no error, no prompt, nothing at all.
+  //
+  // An extension-initiated tab navigation is not subject to that rule, so
+  // handing the tab to the protocol this way is what actually launches the app.
+  // The page stays put: the browser intercepts the unknown scheme and hands it
+  // to the OS instead of completing the navigation.
+  try {
+    await chrome.tabs.update(tab.id, { url: target })
+    console.info('[save-to-recipes] handed off via tabs.update')
+    return
+  } catch (error) {
+    console.warn('[save-to-recipes] tabs.update refused the hand-off', error)
+  }
+
+  // Some builds refuse to navigate an existing tab to an unknown scheme. A new
+  // tab is the other extension-initiated route, and is how the "open in …"
+  // style extensions do it.
+  try {
+    await chrome.tabs.create({ url: target, active: true })
+    console.info('[save-to-recipes] handed off via tabs.create')
+    return
+  } catch (error) {
+    console.warn('[save-to-recipes] tabs.create refused the hand-off', error)
+  }
+
+  // Last resort: let the page try. Works where the page does hold activation,
+  // and costs nothing when it does not.
   try {
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -76,14 +104,8 @@ async function saveCurrentPage(tab) {
       },
       args: [target],
     })
-  } catch {
-    // Sometimes a page refuses injection — a PDF viewer, the Web Store, a
-    // privileged URL. Navigating the tab works there and is the same hand-off
-    // the browser would have made anyway.
-    try {
-      await chrome.tabs.update(tab.id, { url: target })
-    } catch {
-      flashBadge(tab.id, '!')
-    }
+  } catch (error) {
+    console.error('[save-to-recipes] could not reach The Recipe App', error)
+    flashBadge(tab.id, '!')
   }
 }
