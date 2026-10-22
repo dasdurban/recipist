@@ -21,6 +21,14 @@ import { DEFAULT_SETTINGS, db } from '../db/database'
  * Returns true when the seed was applied.
  */
 export async function seedFromBundledBackup(): Promise<boolean> {
+  // Checked before the fetch on purpose: an install that has been used must not
+  // pay to read and parse a 6 MB seed on every launch just to throw it away.
+  const [existingCategories, existingRecipes] = await Promise.all([
+    db.categories.count(),
+    db.recipes.count(),
+  ])
+  if (existingCategories > 0 || existingRecipes > 0) return false
+
   let seed: Partial<BackupFile>
   try {
     const response = await fetch(`${import.meta.env.BASE_URL}preseed.json`, { cache: 'no-store' })
@@ -33,9 +41,6 @@ export async function seedFromBundledBackup(): Promise<boolean> {
   }
 
   if (!seed || !Array.isArray(seed.categories) || !Array.isArray(seed.recipes)) return false
-
-  const [categories, recipes] = await Promise.all([db.categories.count(), db.recipes.count()])
-  if (categories > 0 || recipes > 0) return false
 
   await db.transaction(
     'rw',
