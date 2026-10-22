@@ -17,6 +17,7 @@ unaffected by everything here.
 | Xcode 26 or later installed | ✅ On the MacBook Neo (Xcode 27 / macOS 27) |
 | Data migration for the sandbox container | ✅ Not needed — shipping as a fresh start |
 | Apple Distribution certificate | ❓ **The remaining unknown — see below** |
+| Mac Installer Distribution certificate | ❓ Needed only for the `.pkg` route |
 | App Store Connect listing | ❌ Not started |
 
 The earlier Xcode blocker is resolved: the build now happens on a MacBook Neo
@@ -158,22 +159,122 @@ draws a question, and a used-but-undeclared one is an automatic `ITMS-91053`.
 `scripts/build-mas.sh` greps `dist/` for `navigator.storage.estimate()` and warns
 if it reappears.
 
-## Building and submitting
+## Building on the MacBook Neo
+
+The direct-download `.dmg` can be built anywhere. The App Store bundle cannot:
+it needs Xcode and an Apple Distribution certificate. These steps take a
+factory-fresh machine to a signed, sandboxed `.app`.
+
+### 1. Xcode
 
 ```bash
-./scripts/build-mas.sh
+sudo xcode-select -s /Applications/Xcode.app
+sudo xcodebuild -license accept
+xcodebuild -runFirstLaunch
+xcodebuild -version      # must report 26 or later
 ```
 
-The script verifies the toolchain, builds, bundles with the MAS config, checks
-the privacy manifest is inside the bundle and that `app-sandbox` is present in
-the signed entitlements, signs with your Apple Distribution identity, and prints
-the upload command.
+### 2. Node and Rust
+
+```bash
+brew install node@24
+echo 'export PATH="/opt/homebrew/opt/node@24/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+
+curl https://sh.rustup.rs -sSf | sh -s -- -y
+source "$HOME/.cargo/env"
+
+node --version && npm --version && cargo --version && rustc --version
+```
+
+`scripts/build-mas.sh` checks all four before it starts and stops with the exact
+command to fix whichever is missing. Rust is the one people trip on: rustup
+installs to `~/.cargo/bin`, which is not on `PATH` until `~/.cargo/env` is
+sourced, so a new terminal will "lose" `cargo` until that line is in `~/.zshrc`.
+
+### 3. The code
+
+```bash
+git clone https://github.com/dasdurban/recipist.git
+cd recipist
+npm ci
+```
+
+`npm ci`, not `npm install`: it installs exactly what `package-lock.json` pins,
+and fails loudly if the two have drifted.
+
+### 4. The certificate
+
+Xcode → Settings → Accounts → **+** → add the Apple ID that belongs to the
+developer team → select the team → **Manage Certificates…** → **+** →
+**Apple Distribution**.
+
+```bash
+security find-identity -v -p codesigning | grep "Apple Distribution"
+```
+
+This is the only step that cannot be scripted or guessed. If the certificate
+already exists on another Mac, it can be exported from Keychain Access as a
+`.p12` and imported here — **with its private key**. A certificate without its
+private key fails at signing with `errSecInternalComponent`, which is why the
+script checks for the identity before building rather than after.
+
+### 5. Build
+
+```bash
+./scripts/build-mas.sh 2>&1 | tee /tmp/mas-build.log
+```
+
+Cold, with no Rust cache, expect 5–10 minutes; the compile dominates. The script
+prints four lines that must all look right:
+
+```
+  PrivacyInfo.xcprivacy: present
+  app-sandbox: true
+  signed by: Apple Distribution: Your Name (TEAMID)
+  provisioning profile: none
+```
+
+`provisioning profile: none` is correct here — a profile is only required for
+capabilities such as iCloud, App Groups or push, none of which this app uses.
+If Transporter objects to the missing profile, create a **Mac App Store**
+distribution profile for `com.recipist.app` and drop it in as
+`Contents/embedded.provisionprofile`; nothing else changes.
+
+The Neo is Apple Silicon, so this `.app` is **arm64 only**. That is fine for the
+Store — but it is a different architecture from the x64 `.dmg` built here, so do
+not compare the two binaries.
+
+### 6. Package and upload
+
+Transporter takes a **`.pkg`** for macOS apps, not a bare `.app`. Building one
+needs a second certificate: Xcode → Manage Certificates… → **+** →
+**Mac Installer Distribution**.
+
+```bash
+APP="src-tauri/target/release/bundle/macos/The Recipe App.app"
+productbuild --component "$APP" /Applications \
+  --sign "Mac Installer Distribution: Your Name (TEAMID)" \
+  "The Recipe App.pkg"
+```
+
+Drag the resulting `.pkg` into Transporter (free on the Mac App Store).
+
+`xcrun altool --upload-app --type macos --file "$APP"` still accepts the `.app`
+directly and needs no installer certificate, but Apple has marked it deprecated.
+Treat it as the shortcut, and the `.pkg` as the path that will keep working.
+
+## Submitting
+
+The app record must exist in App Store Connect before a build will attach to
+anything: create it with bundle ID `com.recipist.app`, name
+**Tomato - The Recipe App**, platform macOS.
 
 Then:
 
-1. Upload the **`.app`** (not a `.dmg`) with Transporter or `xcrun altool`.
-2. In App Store Connect, complete the listing: description, screenshots,
-   category, age rating. Copy is drafted in `MAS-LISTING.md`.
+1. Upload as above.
+2. Complete the listing: description, screenshots, category, age rating. Copy is
+   drafted in `MAS-LISTING.md`.
 3. **Add the privacy policy URL** (policy requires one for desktop apps):
    `https://dasdurban.github.io/recipist/privacy-policy.html`.
 4. Submit for review.
