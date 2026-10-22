@@ -135,12 +135,18 @@ On Windows, after a build:
 
 ```powershell
 npx tauri build
-pwsh scripts/build-msix.ps1 -Register
+powershell scripts/build-msix.ps1 -Register
 ```
 
 `-Register` stages the app, generates the tile assets, and registers the folder
 with the current user via `Add-AppxPackage`. The app then launches from the
 Start menu, packaged, without anything being signed.
+
+> `Add-AppxPackage` lives in the **Appx** module, which only exists in Windows
+> PowerShell 5.1 — PowerShell 7 (`pwsh`) cannot run it without importing the
+> module from a Windows PowerShell session. The script itself works under
+> either, so use `powershell` (5.1) for the `-Register` run. `pwsh` is not
+> installed on every machine, so `powershell` is the safer command to document.
 
 To remove it again:
 
@@ -151,11 +157,25 @@ Get-AppxPackage LeveilleApps.TheRecipeApp | Remove-AppxPackage
 This is the cheapest way to catch a manifest or staging mistake, so do it
 before producing a package.
 
+### A registered package locks the staging folder
+
+`-Register` installs *from* `src-tauri/target/msix/staging`, and Windows then
+holds a lock on those files. The next run of the script cannot delete the
+folder to re-stage it, and fails with a permission error on `recipist.exe` that
+reads like a build problem rather than a stale registration.
+
+The script now removes a package registered from that folder before staging, so
+re-running it just works. If you ever hit the error by hand, the fix is:
+
+```powershell
+Get-AppxPackage LeveilleApps.TheRecipeApp | Remove-AppxPackage
+```
+
 ## Producing the package to upload
 
 ```powershell
 npx tauri build
-pwsh scripts/build-msix.ps1 -Package
+powershell scripts/build-msix.ps1 -Package
 ```
 
 This requires `MakeAppx.exe`, from the Windows SDK (the "MSIX Packaging
@@ -163,7 +183,7 @@ Tools" component), so run it from a Developer PowerShell — or pass the path
 explicitly with `-MakeAppxPath`:
 
 ```powershell
-pwsh scripts/build-msix.ps1 -Package -MakeAppxPath "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\MakeAppx.exe"
+powershell scripts/build-msix.ps1 -Package -MakeAppxPath "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\MakeAppx.exe"
 ```
 
 Output:
@@ -181,6 +201,19 @@ Double-clicking an unsigned package opens App Installer with **Install greyed
 out**, and nothing on the screen says why. This is not a manifest problem — it
 is App Installer refusing to install something it cannot verify. A `.msix` from
 the Store is signed by Microsoft; an unsigned one has no signature at all.
+
+`Add-AppxPackage` says the same thing more plainly, and it is the fastest way
+to tell this apart from a real packaging fault:
+
+```
+The package deployment failed because its publisher is not in the unsigned namespace.
+DeploymentAdd ... failed with error 0x80073D2C
+```
+
+`0x80073D2C` means exactly what it says: the package has no signature, and its
+publisher is not one Windows will install unsigned. The fix is not a different
+publisher or a different manifest — it is to sign the package, or to test it
+with `-Register`.
 
 Two ways round it, and they are not interchangeable:
 
@@ -248,6 +281,41 @@ keys are in the package as `Software\Classes\recipist` with `URL Protocol`,
 investigating in the browser's prompt, not in the app.
 
 
+
+## The WebView2 runtime
+
+Tauri draws the app in a WebView2, and the WebView2 Evergreen Runtime is not
+part of Windows — it is a separate install. Windows 11 ships it, and so does
+almost every Windows 10 machine, but "almost every" is not "every", and a
+package that says nothing about it fails in the worst possible way: the app
+installs cleanly and then cannot start.
+
+The manifest declares it the way Microsoft documents for MSIX packages:
+
+```xml
+<win32dependencies:ExternalDependency
+  Name="Microsoft.WebView2"
+  Publisher="CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+  MinVersion="1.1.1.1"
+  Optional="true" />
+```
+
+`Microsoft.WebView2` is the one external dependency App Installer is allowed to
+chain-install, and it is the mechanism the WebView2 distribution docs point at
+for MSIX apps.
+
+Two things to know about it:
+
+- **`Optional="true"`** — an offline install should not fail over a runtime
+  that is present on nearly every machine anyway.
+- **It is only acted on when the package is installed through App Installer.**
+  The Store installs through its own path, where the runtime is expected to
+  already be there. So this declaration is a safety net for sideloaded and
+  App-Installer installs, not the thing that makes the Store build work.
+
+Nothing else is missing. The app binary imports only Windows system libraries
+and the Universal CRT, which ships with Windows itself — no VC++ redistributable
+is needed, so the package carries no `Microsoft.VCLibs` dependency.
 
 ## Submission checklist
 
