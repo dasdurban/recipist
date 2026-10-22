@@ -155,6 +155,7 @@ interface AppState {
     eventShoppingItems?: EventShoppingItem[]
     eventIngredientChecks?: EventIngredientCheck[]
     eventTodos?: EventTodo[]
+    recipeOrders?: RecipeOrder[]
   }, mode: 'merge' | 'replace') => Promise<void>
 
   toast: (message: string, tone?: Toast['tone']) => void
@@ -882,6 +883,7 @@ export const useApp = create<AppState>((set, get) => ({
         db.eventShoppingItems,
         db.eventIngredientChecks,
         db.eventTodos,
+        db.recipeOrders,
       ],
       async () => {
         if (mode === 'replace') {
@@ -894,6 +896,7 @@ export const useApp = create<AppState>((set, get) => ({
             db.eventShoppingItems.clear(),
             db.eventIngredientChecks.clear(),
             db.eventTodos.clear(),
+            db.recipeOrders.clear(),
           ])
         }
         await db.categories.bulkPut(data.categories)
@@ -906,6 +909,7 @@ export const useApp = create<AppState>((set, get) => ({
           await db.eventIngredientChecks.bulkPut(data.eventIngredientChecks)
         }
         if (data.eventTodos) await db.eventTodos.bulkPut(data.eventTodos)
+        if (data.recipeOrders) await db.recipeOrders.bulkPut(data.recipeOrders)
         if (data.settings && mode === 'replace') {
           await db.settings.put({ ...data.settings, id: 'settings' })
         }

@@ -17,6 +17,7 @@ import { Confirm } from './components/ui/Confirm'
 import { Toasts } from './components/ui/Toasts'
 import { TomatoLogo } from './components/TomatoLogo'
 import { seedIfEmpty, seedSampleRecipeIfEmpty } from './lib/seed'
+import { seedFromBundledBackup } from './lib/preseed'
 import { DEFAULT_SETTINGS } from './db/database'
 import { FAVORITES_ID } from './lib/nav'
 
@@ -116,9 +117,13 @@ export default function App() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      await init()
+      // Seeding happens before the store reads anything, so a fresh install
+      // opens straight onto the bundled content. Each step is a no-op once the
+      // database has content, so the order only decides who gets there first.
+      await seedFromBundledBackup()
       await seedIfEmpty(DEFAULT_SETTINGS.defaultColorSet)
       await seedSampleRecipeIfEmpty()
+      await init()
       if (cancelled) return
       await refresh()
       // Photos that still point at a website are copied into the app itself, so

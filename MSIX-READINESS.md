@@ -386,6 +386,39 @@ It only becomes relevant if a build ships to real users before the Store
 version does. At that point the answer would be the app's existing backup and
 export: export from the old build, import into the packaged one.
 
+## Pre-populated builds
+
+Every build can start with the same content, which is what makes a test build
+useful on a platform you cannot reach: Windows, macOS, Linux and mobile all get
+the same recipes instead of an empty app.
+
+The seed is `public/preseed.json`, in the app's own backup format. It is shipped
+beside the app rather than imported into the bundle, so it costs nothing at
+startup once an install has content, and it is read with the same code on every
+platform. A copy of the browser's IndexedDB folder would *not* work for this:
+WebView2, WKWebView and Android's WebView each store it differently, so a copied
+folder only ever works on the machine that made it.
+
+`src/lib/preseed.ts` applies it only when the database has no categories and no
+recipes, and only before the store loads. A fresh install therefore opens
+straight onto the seed; an install that has been used is never touched, so
+deleted recipes do not come back and seeding cannot overwrite real work.
+
+To refresh the seed from the current data:
+
+```powershell
+# start the app with a debug port
+$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"
+.\src-tauri\target\release\recipist.exe
+
+# in another terminal, dump the database
+node scripts/export-preseed.mjs
+```
+
+That rewrites `public/preseed.json`. Rebuild after it: the JSON is copied into
+`dist/`, so the MSI, NSIS installer, MSIX, `.deb`, macOS app and mobile builds
+all carry the same content.
+
 ## Files
 
 | Path | Purpose |
@@ -395,3 +428,5 @@ export: export from the old build, import into the packaged one.
 | `src-tauri/msix/identity.json` | Your real values (gitignored) |
 | `scripts/build-msix.ps1` | Stages, then registers or packs |
 | `scripts/check-offline-installer.sh` | Proves WebView2 is embedded |
+| `public/preseed.json` | Content every fresh install starts with |
+| `scripts/export-preseed.mjs` | Rewrites the seed from a running app |

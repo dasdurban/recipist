@@ -261,4 +261,6 @@ export interface BackupFile {
   eventShoppingItems?: EventShoppingItem[]
   eventIngredientChecks?: EventIngredientCheck[]
   eventTodos?: EventTodo[]
+  // Saved thumbnail order. Absent from backups made before it was recorded.
+  recipeOrders?: RecipeOrder[]
 }

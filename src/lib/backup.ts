@@ -7,6 +7,7 @@ import type {
   EventShoppingItem,
   EventTodo,
   Recipe,
+  RecipeOrder,
   Settings,
   ShoppingList,
 } from '../types'
@@ -25,6 +26,7 @@ export async function createBackup(settings: Settings): Promise<BackupFile> {
     eventShoppingItems,
     eventIngredientChecks,
     eventTodos,
+    orders,
   ] = await Promise.all([
     db.categories.toArray(),
     db.recipes.toArray(),
@@ -34,6 +36,7 @@ export async function createBackup(settings: Settings): Promise<BackupFile> {
     db.eventShoppingItems.toArray(),
     db.eventIngredientChecks.toArray(),
     db.eventTodos.toArray(),
+    db.recipeOrders.toArray(),
   ])
   return {
     app: 'the-recipe-app',
@@ -48,6 +51,7 @@ export async function createBackup(settings: Settings): Promise<BackupFile> {
     eventShoppingItems,
     eventIngredientChecks,
     eventTodos,
+    recipeOrders: orders,
   }
 }
 
@@ -134,6 +138,7 @@ export function parseBackupText(text: string): ParsedBackup {
       eventShoppingItems: (obj.eventShoppingItems as EventShoppingItem[] | undefined) ?? [],
       eventIngredientChecks: (obj.eventIngredientChecks as EventIngredientCheck[] | undefined) ?? [],
       eventTodos: (obj.eventTodos as EventTodo[] | undefined) ?? [],
+      recipeOrders: (obj.recipeOrders as RecipeOrder[] | undefined) ?? [],
     },
     stats: { categories: categories.length, recipes: recipes.length, shoppingLists: lists.length },
   }
