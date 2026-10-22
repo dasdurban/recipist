@@ -397,7 +397,9 @@ export function CategoryPage({
               key={recipe.id}
               data-recipe-id={recipe.id}
               className={clsx(
-                'relative touch-pan-y select-none transition-transform duration-150',
+                // `group` is what makes the grip and the "Move to top" button
+                // appear on hover; without it they sit at opacity 0 forever.
+                'group relative touch-pan-y select-none transition-transform duration-150',
                 held && 'z-10',
               )}
               onClickCapture={(e) => {
