@@ -264,6 +264,78 @@ Drag the resulting `.pkg` into Transporter (free on the Mac App Store).
 directly and needs no installer certificate, but Apple has marked it deprecated.
 Treat it as the shortcut, and the `.pkg` as the path that will keep working.
 
+## Testing the sandboxed build locally
+
+Yes — the MAS build runs on the machine that made it, and this is worth doing
+before an upload rather than after a rejection.
+
+It launches because it was built locally: locally built files carry no
+`com.apple.quarantine` attribute, so Gatekeeper's first-launch check never runs.
+Do **not** copy it to another Mac to test — "Apple Distribution" is not a
+Gatekeeper distribution identity, and outside the Store it will not be trusted.
+
+What the local run does reproduce: the sandbox itself. Launching it exercises
+every entitlement, because the signature is the thing that turns them on.
+
+### The one thing that will confuse you
+
+The sandboxed build and the direct-download build share the bundle identifier
+`com.recipist.app` and both register `recipist://`. If the unsandboxed copy is
+still on the machine, LaunchServices may hand your deep link to *it* — the app
+opens, imports nothing into the sandbox, and the sandbox looks broken when it
+is not.
+
+Quit the old build and move it out of `/Applications` before testing, then
+rebuild the LaunchServices database:
+
+```bash
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f \
+  "src-tauri/target/release/bundle/macos/The Recipe App.app"
+```
+
+Confirm which binary actually opened with `ps -o command= -p <pid>`: the sandboxed
+one runs from the bundle path, not `/Applications`.
+
+### Where its data lives
+
+A separate, empty store — this is the documented consequence of sandboxing:
+
+```bash
+~/Library/Containers/com.recipist.app/Data/Library/WebKit/
+```
+
+An empty recipe list on first launch is correct, not a bug. Reset the app to a
+fresh install by quitting it and removing that container.
+
+### Watching for denials
+
+Every blocked action appears in the system log, naming the entitlement that was
+missing:
+
+```bash
+log stream --predicate 'process == "The Recipe App"' --level debug
+```
+
+That is the fastest way to tell "the app has a bug" from "the app asked for
+something the sandbox refused".
+
+### What to exercise, in order of how likely it is to fail
+
+| Feature | Entitlement under test |
+| --- | --- |
+| Import a recipe from a URL | `network.client` |
+| OCR a photo | `network.client` (tesseract.js worker from CDN) |
+| Open a photo, open a backup | `files.user-selected.read-only` |
+| Save a backup | `files.user-selected.read-write` |
+| Print | `print` |
+| `recipist://` from the bookmarklet and extension | none — but see the LaunchServices note |
+
+### What cannot be tested locally
+
+Receipt validation, Store updates and Store-delivered installs. The app has no
+in-app purchase and no updater, so none of that applies — but it is why a
+successful local run is not the same thing as a successful review.
+
 ## Submitting
 
 The app record must exist in App Store Connect before a build will attach to
