@@ -13,16 +13,18 @@
  * serving the bundle from before it had neither.
  *
  * So the desktop build never registers a worker, and anything left behind by an
- * older install is cleared out here on the next start.
+ * older install is cleared out here on the next start. The native side does
+ * the same job, because the page that has to do it may itself be the stale
+ * copy - see `PURGE_SERVICE_WORKER_JS` in `src-tauri/src/lib.rs`.
  */
 import { isTauri } from './native'
 
 /**
- * Set once the cleanup has run, so the desktop app and the native side (which
- * has to do the same job for a page that is itself the stale copy) do not
- * both reload the window.
+ * How many times the window may be reloaded to shed a worker. A worker that
+ * refuses to go must not be able to start a reload loop.
  */
-const PURGE_MARKER = '__recipist_service_worker_purged'
+const PURGE_ROUNDS = '__recipist_service_worker_purge_rounds'
+const MAX_ROUNDS = 4
 
 /**
  * Unregisters any service worker and drops its caches.
@@ -34,14 +36,40 @@ const PURGE_MARKER = '__recipist_service_worker_purged'
 export async function purgeServiceWorker(): Promise<boolean> {
   if (!isTauri()) return false
   if (!('serviceWorker' in navigator)) return false
-  if (window.sessionStorage.getItem(PURGE_MARKER)) return false
 
-  let registrations: readonly ServiceWorkerRegistration[] = []
+  let rounds = 0
   try {
-    registrations = await navigator.serviceWorker.getRegistrations()
+    rounds = Number(window.sessionStorage.getItem(PURGE_ROUNDS) || '0')
   } catch {
     return false
   }
+  if (rounds >= MAX_ROUNDS) return false
+
+  // A page that is being served by a worker is showing the bundle from the
+  // cache rather than from the binary.
+  const wasControlled = !!navigator.serviceWorker.controller
+
+  // The stale bundle is still trying to register its worker, so the
+  // registration is removed again and again until it really stays gone.
+  for (let attempt = 0; attempt < 10; attempt++) {
+    let registrations: readonly ServiceWorkerRegistration[]
+    try {
+      registrations = await navigator.serviceWorker.getRegistrations()
+    } catch {
+      return false
+    }
+    if (registrations.length === 0) break
+    await Promise.all(registrations.map((r) => r.unregister().catch(() => {})))
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+
+  let left: readonly ServiceWorkerRegistration[]
+  try {
+    left = await navigator.serviceWorker.getRegistrations()
+  } catch {
+    return false
+  }
+  if (left.length > 0) return false
 
   // Caches can outlive the worker that filled them, so they go either way.
   if ('caches' in window) {
@@ -52,19 +80,13 @@ export async function purgeServiceWorker(): Promise<boolean> {
     }
   }
 
-  if (registrations.length === 0) return false
+  if (!wasControlled) return false
 
-  // A controlled page is being served by the worker, so what is on screen
-  // came from the cache rather than from the binary.
-  const wasControlled = !!navigator.serviceWorker.controller
-
-  await Promise.all(registrations.map((r) => r.unregister().catch(() => {})))
-
-  window.sessionStorage.setItem(PURGE_MARKER, '1')
-
-  if (wasControlled) {
-    window.location.reload()
-    return true
+  try {
+    window.sessionStorage.setItem(PURGE_ROUNDS, String(rounds + 1))
+  } catch {
+    /* the reload still works without the counter */
   }
-  return false
+  window.location.reload()
+  return true
 }

@@ -37,30 +37,39 @@ const PAGE_READY_JS: &str = "document.readyState === 'complete' || (document.rea
 /// service worker and cache APIs, which are the same whatever bundle is on
 /// screen.
 ///
-/// The reload at the end is what actually delivers the installed build. It is
-/// guarded twice over: the session marker means a second attempt is not
-/// made, and the page is only reloaded once a worker is really gone.
+/// The stale bundle is also still trying to register its worker, so the
+/// registration is removed again and again until it really stays gone. The
+/// reload at the end is what delivers the installed build; it is counted, so
+/// a worker that refuses to go cannot start a reload loop.
 #[cfg(desktop)]
 const PURGE_SERVICE_WORKER_JS: &str = r#"
 (async () => {
-  const MARKER = '__recipist_service_worker_purged';
+  const ROUNDS = '__recipist_service_worker_purge_rounds';
+  const MAX_ROUNDS = 4;
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   try {
     if (!('serviceWorker' in navigator)) return;
-    if (window.sessionStorage.getItem(MARKER)) return;
-    const registrations = await navigator.serviceWorker.getRegistrations();
-    const controlled = !!navigator.serviceWorker.controller;
-    if (!registrations.length && !controlled) return;
-    let removed = 0;
-    for (const registration of registrations) {
-      try { if (await registration.unregister()) removed += 1; } catch (error) {}
+    const rounds = Number(window.sessionStorage.getItem(ROUNDS) || '0');
+    if (rounds >= MAX_ROUNDS) return;
+    const wasControlled = !!navigator.serviceWorker.controller;
+    let registrations = [];
+    for (let attempt = 0; attempt < 10; attempt++) {
+      registrations = await navigator.serviceWorker.getRegistrations();
+      if (!registrations.length) break;
+      for (const registration of registrations) {
+        try { await registration.unregister(); } catch (error) {}
+      }
+      await sleep(250);
     }
+    registrations = await navigator.serviceWorker.getRegistrations();
+    if (registrations.length) return;
     if ('caches' in window) {
       for (const key of await caches.keys()) {
         try { await caches.delete(key); } catch (error) {}
       }
     }
-    if (!removed && controlled) return;
-    window.sessionStorage.setItem(MARKER, '1');
+    if (!wasControlled) return;
+    window.sessionStorage.setItem(ROUNDS, String(rounds + 1));
     location.reload();
   } catch (error) {}
 })()
