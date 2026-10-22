@@ -25,6 +25,47 @@ const WEBVIEW_SETTLE: Duration = Duration::from_millis(400);
 /// video, which we never look at.
 const PAGE_READY_JS: &str = "document.readyState === 'complete' || (document.readyState !== 'loading' && Array.prototype.some.call(document.querySelectorAll('script[type=application/ld+json]'), function (s) { return (s.textContent || '').indexOf('Recipe') !== -1 }))";
 
+/// Clears a service worker out of the desktop app.
+///
+/// The app ships its assets inside the binary, but a build from before the
+/// worker was turned off left one behind, and a worker keeps serving the
+/// bundle of whichever version cached it first. The webview cannot repair
+/// that on its own: updating a worker script over the asset protocol fails
+/// with "An unknown error occurred when fetching the script", so the stale
+/// copy is permanent - and the page that would fix it is the stale copy
+/// itself. The cleanup therefore runs from here, through the browser's own
+/// service worker and cache APIs, which are the same whatever bundle is on
+/// screen.
+///
+/// The reload at the end is what actually delivers the installed build. It is
+/// guarded twice over: the session marker means a second attempt is not
+/// made, and the page is only reloaded once a worker is really gone.
+#[cfg(desktop)]
+const PURGE_SERVICE_WORKER_JS: &str = r#"
+(async () => {
+  const MARKER = '__recipist_service_worker_purged';
+  try {
+    if (!('serviceWorker' in navigator)) return;
+    if (window.sessionStorage.getItem(MARKER)) return;
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    const controlled = !!navigator.serviceWorker.controller;
+    if (!registrations.length && !controlled) return;
+    let removed = 0;
+    for (const registration of registrations) {
+      try { if (await registration.unregister()) removed += 1; } catch (error) {}
+    }
+    if ('caches' in window) {
+      for (const key of await caches.keys()) {
+        try { await caches.delete(key); } catch (error) {}
+      }
+    }
+    if (!removed && controlled) return;
+    window.sessionStorage.setItem(MARKER, '1');
+    location.reload();
+  } catch (error) {}
+})()
+"#;
+
 /// Injected into the hidden fetcher window before any page script runs. Recipe
 /// sites spend most of their load time on advertising, analytics and video that
 /// we can never use, so it never starts.
@@ -550,7 +591,7 @@ pub fn run() {
         }));
     }
 
-    builder
+    let builder = builder
         .plugin(tauri_plugin_deep_link::init())
         // Native shell plugins. The webview can't open a new window (no
         // `new_window_req_handler` is registered, so wry denies it) and its
@@ -619,7 +660,29 @@ pub fn run() {
             }
 
             Ok(())
-        })
+        });
+
+    // A service worker left behind by an older install keeps serving that
+    // install's bundle, and it cannot be updated from inside the webview, so
+    // it has to be cleared from out here once a page has loaded. Only the
+    // app's own windows are touched: the hidden window that reads recipe
+    // sites is not ours to clean up.
+    #[cfg(desktop)]
+    let builder = builder.on_page_load(|webview, payload| {
+        use tauri::webview::PageLoadEvent;
+
+        if payload.event() != PageLoadEvent::Finished {
+            return;
+        }
+        if !matches!(webview.label(), "main" | "timer") {
+            return;
+        }
+        if let Err(error) = webview.eval(PURGE_SERVICE_WORKER_JS) {
+            log::warn!("could not clear the service worker: {error}");
+        }
+    });
+
+    builder
         // The detached kitchen-timer window keeps the process alive, so closing
         // the main window has to end the app itself — as it did before the timer
         // had a window of its own.
