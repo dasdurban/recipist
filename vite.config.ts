@@ -17,6 +17,11 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Registration is done by hand in src/main.tsx, so the desktop build can
+      // leave it out. Injected script tags run whatever the build is, and a
+      // service worker inside the desktop app caches the bundle and then keeps
+      // serving it after an app update (see lib/pwa).
+      injectRegister: null,
       includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'icons/*.png'],
       manifest: {
         name: 'The Recipe App',
