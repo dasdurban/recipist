@@ -16,7 +16,8 @@
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap10 rescap">
+  xmlns:win32dependencies="http://schemas.microsoft.com/appx/manifest/externaldependencies"
+  IgnorableNamespaces="uap uap10 rescap win32dependencies">
 
   <!-- Version is quad notation: major.minor.build.revision.
        The Store reserves the fourth field, so it stays 0. -->
@@ -44,6 +45,23 @@
          legacy EntryPoint attribute instead. 2004 is well past end of support,
          so this costs nothing. -->
     <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.22621.0" />
+
+    <!-- The WebView2 Evergreen Runtime is not part of Windows, it is a separate
+         install, so the package has to say what it needs. Microsoft.WebView2 is
+         the one external dependency App Installer is allowed to chain-install,
+         and it is the mechanism Microsoft's own WebView2 distribution docs point
+         at for MSIX apps.
+
+         Optional="true" because the runtime is present on Windows 11 and on
+         almost every Windows 10 machine, and an offline install should not fail
+         over it. Note the element is only acted on when the package is
+         installed through App Installer; the Store installs it through its own
+         path, where the runtime is expected to already be there. -->
+    <win32dependencies:ExternalDependency
+      Name="Microsoft.WebView2"
+      Publisher="CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+      MinVersion="1.1.1.1"
+      Optional="true" />
   </Dependencies>
 
   <Capabilities>
