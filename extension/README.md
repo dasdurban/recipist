@@ -17,7 +17,29 @@ registers with the operating system.
 | --- | --- |
 | `manifest.json` | Manifest V3, shared by Chrome, Edge and (via conversion) Safari |
 | `background.js` | The click handler; hands the active tab's address to the app |
-| `icons/` | 16, 32, 48 and 128px, cut from `public/icons/icon-1024.png` |
+| `icons/` | 16, 32, 48 and 128px — generated, see below |
+
+### The icons
+
+Do not edit `icons/` by hand. They are rendered by `scripts/gen-icons.mjs` along
+with the app icons, from the same polygon source, so the mark never drifts.
+
+They are deliberately *not* the app icons scaled down. A toolbar icon is drawn
+at 16px next to other 16px icons, and at app-icon proportions the tomato landed
+at about 60% of the canvas — a few pixels of red in a field of white. The
+extension variant fits the mark to the tile instead of the roomier viewBox and
+lets the tile run nearly edge to edge, which puts the tomato near 84%. 16 and 32
+share one framing (the toolbar uses 32 on retina); 48 and 128 are slightly
+airier for the extensions page and store listing.
+
+Regenerate with:
+
+```bash
+node scripts/gen-icons.mjs
+```
+
+That also rewrites `public/icons/` and the macOS source; those come out
+identical, because the app-icon path is untouched.
 
 ## How the hand-off works
 
