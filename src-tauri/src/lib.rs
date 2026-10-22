@@ -578,6 +578,72 @@ fn take_pending_import_url() -> Option<String> {
     pending_import_url().lock().ok().and_then(|mut slot| slot.take())
 }
 
+/// Pulls a window back onto a monitor when its saved geometry no longer fits
+/// any of them — the case where the display it was last used on is gone, or a
+/// laptop was undocked. Without this the window restores faithfully to
+/// coordinates that are off-screen, and the app looks like it failed to launch.
+#[cfg(desktop)]
+fn keep_window_on_screen(window: &WebviewWindow) {
+    // A maximized window is already exactly as large as its screen; resizing it
+    // here would fight the window manager for no benefit.
+    if window.is_maximized().unwrap_or(false) {
+        return;
+    }
+
+    let Ok(position) = window.outer_position() else {
+        return;
+    };
+    let Ok(size) = window.outer_size() else {
+        return;
+    };
+    let Ok(monitors) = window.available_monitors() else {
+        return;
+    };
+    if monitors.is_empty() {
+        return;
+    }
+
+    // How much of the window has to sit on a monitor for it to count as usable.
+    // A sliver is not enough: the user has to be able to reach the title bar.
+    const MIN_VISIBLE: i32 = 120;
+
+    let visible_on = monitors.iter().any(|monitor| {
+        let origin = monitor.position();
+        let extent = monitor.size();
+        let left = position.x.max(origin.x);
+        let top = position.y.max(origin.y);
+        let right = (position.x + size.width as i32).min(origin.x + extent.width as i32);
+        let bottom = (position.y + size.height as i32).min(origin.y + extent.height as i32);
+        right - left >= MIN_VISIBLE && bottom - top >= MIN_VISIBLE
+    });
+
+    if visible_on {
+        return;
+    }
+
+    // Prefer the primary monitor, which is the one the user is looking at.
+    let target = window
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| monitors.into_iter().next());
+
+    if let Some(monitor) = target {
+        let origin = monitor.position();
+        let extent = monitor.size();
+        // Shrink to the monitor before centring, otherwise a window saved on a
+        // large display would be centred but still hang off every edge.
+        let width = size.width.min(extent.width);
+        let height = size.height.min(extent.height);
+        if width != size.width || height != size.height {
+            let _ = window.set_size(tauri::PhysicalSize::new(width, height));
+        }
+        let x = origin.x + ((extent.width as i32 - width as i32) / 2).max(0);
+        let y = origin.y + ((extent.height as i32 - height as i32) / 2).max(0);
+        let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default();
@@ -602,6 +668,10 @@ pub fn run() {
 
     let builder = builder
         .plugin(tauri_plugin_deep_link::init())
+        // Restores the main window to the size and place it was left at, and
+        // records them again on close. Registered before the window is created
+        // so there is a state to restore on the very first frame.
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         // Native shell plugins. The webview can't open a new window (no
         // `new_window_req_handler` is registered, so wry denies it) and its
         // downloads aren't wired up without an `on_download` hook — these three
@@ -668,6 +738,16 @@ pub fn run() {
                 }
             }
 
+            // The window already exists and the state plugin has restored its
+            // geometry by this point, so this is the moment to reject a saved
+            // position that no longer lands on a connected monitor.
+            #[cfg(desktop)]
+            {
+                if let Some(window) = app.get_webview_window("main") {
+                    keep_window_on_screen(&window);
+                }
+            }
+
             Ok(())
         });
 
@@ -699,6 +779,20 @@ pub fn run() {
             if window.label() == "main"
                 && matches!(event, tauri::WindowEvent::CloseRequested { .. })
             {
+                // Save synchronously, before `exit` tears the windows down: the
+                // app exits from here, so waiting for the plugin's own exit hook
+                // risks the state never being written and the window coming back
+                // at the default size next launch.
+                #[cfg(desktop)]
+                {
+                    use tauri_plugin_window_state::AppHandleExt;
+                    if let Err(error) = window
+                        .app_handle()
+                        .save_window_state(tauri_plugin_window_state::StateFlags::all())
+                    {
+                        log::warn!("could not save the window state: {error}");
+                    }
+                }
                 window.app_handle().exit(0);
             }
         })

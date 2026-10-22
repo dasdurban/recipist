@@ -18,6 +18,9 @@ android/build
 # Tauri
 src-tauri/target
 
+# A copy of the local IndexedDB used to pre-populate builds. Data, not source.
+preseed/
+
 # Microsoft Store identity (account-specific, not a secret but not shareable)
 src-tauri/msix/identity.json
 

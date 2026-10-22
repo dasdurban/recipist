@@ -20,7 +20,7 @@ import { pickColorForName } from '../lib/colors'
 import { combineIngredients } from '../lib/combineIngredients'
 import { ordersForView } from '../lib/recipeOrder'
 import { remoteImageToDataUrl } from '../lib/ocr'
-import { playTimerDing } from '../lib/timerSound'
+import { playTimerDing, primeTimerAudio } from '../lib/timerSound'
 import { broadcastTimer, type TimerSnapshot } from '../lib/timerSync'
 import { windowLabel } from '../lib/native'
 
@@ -947,6 +947,10 @@ export const useApp = create<AppState>((set, get) => ({
   startTimer() {
     const st = get()
     if (st.timerRunning) return
+    // This runs inside the click that starts the timer, so it is the one
+    // chance to unlock audio. Without it the alarm fires later with no gesture
+    // in flight and can be refused by the autoplay policy.
+    primeTimerAudio()
     const dur = st.timerDuration || st.timerRemaining || 0
     if (dur === 0 && st.timerRemaining === 0) {
       set({ timerDone: true })

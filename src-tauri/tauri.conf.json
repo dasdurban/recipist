@@ -14,10 +14,11 @@
     "windows": [
       {
         "title": "The Recipe App",
-        "width": 1180,
-        "height": 820,
+        "width": 1440,
+        "height": 940,
         "minWidth": 380,
         "minHeight": 560,
+        "center": true,
         "resizable": true,
         "fullscreen": false,
         "dragDropEnabled": false

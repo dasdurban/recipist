@@ -146,7 +146,7 @@ export function EventPlannerPage() {
             />
           </button>
           <button
-            className="btn bg-white text-black border border-black hover:bg-surface-3 shrink-0"
+            className="btn-grey shrink-0"
             onClick={() => setCreateOpen(true)}
           >
             <Plus size={16} /> New

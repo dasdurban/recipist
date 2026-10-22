@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import clsx from 'clsx'
-import { GripVertical, Pencil, Plus, RotateCcw, Search, UtensilsCrossed } from 'lucide-react'
+import { Pencil, Plus, RotateCcw, Search, UtensilsCrossed } from 'lucide-react'
 import type { Category } from '../types'
 import { useApp } from '../store/useApp'
 import { allRecipesColor, colorFor, favoritesColor, prefersLightText } from '../lib/colors'
@@ -116,25 +116,22 @@ export function CategoryPage({
     const rect = tile.getBoundingClientRect()
     setTileSize({ w: rect.width, h: rect.height })
     setPointer({ x, y })
+    lastPointerRef.current = { x, y }
     orderAtGrabRef.current = shown.map((recipe) => recipe.id)
     previewRef.current = shown.map((recipe) => recipe.id)
     setPreviewIds(previewRef.current)
     setHeldId(id)
-  }
-
-  /** Event-shaped entry point, for presses handled synchronously. */
-  function grabOrPlace(e: ReactPointerEvent<HTMLElement>, id: string) {
-    if (e.button !== 0) return
-    const tile = (e.currentTarget as HTMLElement).closest('[data-recipe-id]') as HTMLElement | null
-    if (!tile) return
-    grabTile(id, tile, e.clientX, e.clientY)
+    heldRef.current = id
+    startAutoScroll()
   }
 
   /** Keeps the held tile under the cursor and recomputes which slot it is over. */
   function trackPointer(e: ReactPointerEvent<HTMLElement>) {
     if (!heldId) return
+    lastPointerRef.current = { x: e.clientX, y: e.clientY }
     setPointer({ x: e.clientX, y: e.clientY })
     moveHeldTo(e.clientX, e.clientY)
+    startAutoScroll()
   }
 
   // A press starts a short timer; letting it run picks the tile up. This is how
@@ -142,6 +139,64 @@ export function CategoryPage({
   // otherwise the two gestures would be the same click and one would have to
   // give way.
   const holdTimerRef = useRef<number | null>(null)
+  const gridContainerRef = useRef<HTMLDivElement>(null)
+  const autoScrollRef = useRef<number | null>(null)
+  const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
+  // The auto-scroll loop runs outside the render that started it, so it cannot
+  // read `heldId` — that closure was captured before the tile was lifted and is
+  // always null. This mirror is set synchronously at grab time instead.
+  const heldRef = useRef<string | null>(null)
+
+  function stopAutoScroll() {
+    if (autoScrollRef.current !== null) {
+      cancelAnimationFrame(autoScrollRef.current)
+      autoScrollRef.current = null
+    }
+  }
+
+  function startAutoScroll() {
+    if (autoScrollRef.current !== null) return
+    const scroll = () => {
+      if (!heldRef.current) {
+        stopAutoScroll()
+        return
+      }
+      const container = gridContainerRef.current
+      const main = document.querySelector('main')
+      const scroller = main || document.documentElement || document.body
+      const pointer = lastPointerRef.current
+      if (!scroller) {
+        autoScrollRef.current = requestAnimationFrame(scroll)
+        return
+      }
+      const edgeThreshold = 80
+      const maxSpeed = 12
+      let deltaY = 0
+      if (pointer) {
+        const rect = scroller === document.documentElement || scroller === document.body
+          ? { top: 0, bottom: window.innerHeight }
+          : (scroller as HTMLElement).getBoundingClientRect()
+        if (pointer.y < rect.top + edgeThreshold) {
+          deltaY = -maxSpeed * ((rect.top + edgeThreshold - pointer.y) / edgeThreshold)
+        } else if (pointer.y > rect.bottom - edgeThreshold) {
+          deltaY = maxSpeed * ((pointer.y - (rect.bottom - edgeThreshold)) / edgeThreshold)
+        }
+      } else if (container) {
+        const crect = container.getBoundingClientRect()
+        if (crect.bottom > window.innerHeight - edgeThreshold) deltaY = maxSpeed
+        else if (crect.top < edgeThreshold) deltaY = -maxSpeed
+      }
+      if (Math.abs(deltaY) > 0.5) {
+        if (scroller === document.documentElement || scroller === document.body) {
+          window.scrollBy(0, deltaY)
+        } else {
+          (scroller as HTMLElement).scrollTop += deltaY
+        }
+      }
+      autoScrollRef.current = requestAnimationFrame(scroll)
+    }
+    autoScrollRef.current = requestAnimationFrame(scroll)
+  }
   function startHoldTimer(e: ReactPointerEvent<HTMLElement>, id: string) {
     if (e.button !== 0 || heldId) return
     clearHoldTimer()
@@ -227,12 +282,15 @@ export function CategoryPage({
   function placeHeld() {
     const ids = previewRef.current
     const id = heldId
+    heldRef.current = null
     setHeldId(null)
     setPointer(null)
     setTileSize(null)
     previewRef.current = null
     setPreviewIds(null)
     orderAtGrabRef.current = null
+    lastPointerRef.current = null
+    stopAutoScroll()
     if (ids && id) void reorderRecipes(viewId, ids)
   }
 
@@ -243,19 +301,21 @@ export function CategoryPage({
     // reflects the move that is being undone and the check below would read the
     // two as equal even when the tile had been dragged somewhere.
     const moved = previewRef.current
+    heldRef.current = null
     setHeldId(null)
     setPointer(null)
     setTileSize(null)
     previewRef.current = null
     setPreviewIds(null)
     orderAtGrabRef.current = null
+    lastPointerRef.current = null
+    stopAutoScroll()
     // Nothing to undo if the tile never moved; only write when it did.
     if (original && moved && original.join() !== moved.join()) {
       void reorderRecipes(viewId, original)
     }
   }
 
-  // Esc backs out of a pick-up. Registered only while a tile is held.
   useEffect(() => {
     if (!heldId) return
     function onKey(e: KeyboardEvent) {
@@ -267,6 +327,10 @@ export function CategoryPage({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [heldId, shown])
+
+  useEffect(() => {
+    return () => stopAutoScroll()
+  }, [])
 
   return (
     <div className="px-4 sm:px-6 py-5 max-w-6xl mx-auto w-full">
@@ -312,7 +376,7 @@ export function CategoryPage({
                 Import
               </button>
               <button
-                className="btn bg-white text-black border border-black hover:bg-surface-3"
+                className="btn-grey"
                 onClick={onNewRecipe}
               >
                 <Plus size={16} /> New
@@ -387,6 +451,7 @@ export function CategoryPage({
         </div>
       ) : (
         <div
+          ref={gridContainerRef}
           className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4"
           onPointerMove={trackPointer}
         >
@@ -434,24 +499,10 @@ export function CategoryPage({
                 />
               )}
               <div className={clsx(held && 'invisible')}>
-                {/* The grip is a shortcut: pressing it picks the tile up
-                    immediately, with no hold, so there is always an unambiguous
-                    way to grab without waiting. */}
-                <span
-                  aria-hidden
-                  onPointerDown={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    clearHoldTimer()
-                    grabOrPlace(e, recipe.id)
-                  }}
-                  className={clsx(
-                    'absolute top-2 right-2 z-10 rounded-lg p-1 bg-black/35 text-white transition-opacity',
-                    held ? 'opacity-100 cursor-grabbing' : 'opacity-0 group-hover:opacity-100 cursor-grab',
-                  )}
-                >
-                  <GripVertical size={15} />
-                </span>
+                {/* No grab handle is drawn on the thumbnail. The favorite
+                    button sits in that corner, and a second control on top of
+                    it was both confusing and in the way. Reordering is still
+                    available by holding a tile, and by "Move to top" below. */}
                 {/* Reordering by hand is mouse-only; this gives the same result
                     from the keyboard, which is also the only way on a touch
                     device with no second click available. */}

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
+  CalendarPlus,
   Clock,
   ExternalLink,
   Heart,
@@ -32,8 +33,12 @@ export function RecipeView({
   const categories = useApp((s) => s.categories)
   const settings = useApp((s) => s.settings)
   const toggleFavorite = useApp((s) => s.toggleFavorite)
+  const events = useApp((s) => s.events)
+  const addEventRecipe = useApp((s) => s.addEventRecipe)
+  const toast = useApp((s) => s.toast)
   const [servings, setServings] = useState(recipe.servings ?? 1)
   const [checked, setChecked] = useState<Set<string>>(new Set())
+  const [addToEventOpen, setAddToEventOpen] = useState(false)
 
   const category = categories.find((c) => c.id === recipe.categoryIds[0])
   const hex = category ? colorFor(category.colorName, category.colorSet) : allRecipesColor(settings)
@@ -159,8 +164,58 @@ export function RecipeView({
             >
               <List size={15} /> Shopping list
             </button>
+            {events.length === 0 ? (
+              <button
+                className="btn-soft flex-1 sm:flex-none"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('recipist:event-planner'))
+                  toast('Create an event in the Event Planner first.', 'info')
+                }}
+              >
+                <CalendarPlus size={15} /> Add to event
+              </button>
+            ) : events.length === 1 ? (
+              <button
+                className="btn-soft flex-1 sm:flex-none"
+                onClick={async () => {
+                  await addEventRecipe(events[0].id, recipe.id)
+                  toast(`Added to ${events[0].name}.`, 'success')
+                }}
+              >
+                <CalendarPlus size={15} /> Add to event
+              </button>
+            ) : (
+              <div className="relative flex-1 sm:flex-none">
+                <button
+                  className="btn-soft w-full sm:w-auto"
+                  onClick={() => setAddToEventOpen((v) => !v)}
+                >
+                  <CalendarPlus size={15} /> Add to event
+                </button>
+                {addToEventOpen && (
+                  <div className="absolute left-0 mt-2 w-56 rounded-xl border border-line bg-surface shadow-lg z-10 overflow-hidden">
+                    {events
+                      .slice()
+                      .sort((a, b) => b.updatedAt - a.updatedAt)
+                      .map((event) => (
+                        <button
+                          key={event.id}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-surface-2"
+                          onClick={async () => {
+                            setAddToEventOpen(false)
+                            await addEventRecipe(event.id, recipe.id)
+                            toast(`Added to ${event.name}.`, 'success')
+                          }}
+                        >
+                          {event.name}
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
             <button
-              className="btn-ghost text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40"
+              className="btn-soft text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40"
               onClick={onDelete}
             >
               <Trash2 size={15} /> Delete
