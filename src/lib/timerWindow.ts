@@ -21,11 +21,11 @@ import { isTauri, TIMER_WINDOW_LABEL } from './native'
  * sane default and then asks the panel how much room it actually needs.
  */
 const WIDTH = 360
-const HEIGHT = 640
+const HEIGHT = 610
 const MARGIN = 16
 
 /** Height to fall back on if the panel cannot report its own. */
-const MIN_HEIGHT = 620
+const MIN_HEIGHT = 590
 
 /** Guards against a second click creating a duplicate window. */
 let opening = false

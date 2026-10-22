@@ -265,7 +265,7 @@ export function EventPlannerPage() {
         open={colorOpen}
         onClose={() => setColorOpen(false)}
         title="Event planner color"
-        size="sm"
+        size="md"
         footer={
           <button className="btn-primary" onClick={() => setColorOpen(false)}>
             Done

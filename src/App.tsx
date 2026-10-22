@@ -38,6 +38,10 @@ export default function App() {
   const setSettingsOpen = useApp((s) => s.setSettingsOpen)
 
   const [editing, setEditing] = useState<Recipe | null>(null)
+  // Whether the open editor is a brand-new recipe rather than an existing one.
+  // Saving a new recipe returns the user to the list they came from; saving an
+  // edit returns them to the recipe they were reading.
+  const [editingIsNew, setEditingIsNew] = useState(false)
   const [categoryDialog, setCategoryDialog] = useState<{ open: boolean; category: string | null }>({
     open: false,
     category: null,
@@ -279,13 +283,21 @@ export default function App() {
               onClose={() => setEditing(null)}
               onSaved={(r) => {
                 setEditing(null)
-                useApp.getState().openRecipe(r.id)
+                // Reset so the flag cannot leak into a later edit.
+                setEditingIsNew(false)
+                // A new recipe is saved into the list the user was looking at,
+                // so that is where they should end up — not on the recipe they
+                // just typed in, which they have already seen and checked.
+                if (!editingIsNew) useApp.getState().openRecipe(r.id)
               }}
             />
           ) : activeRecipe ? (
             <RecipeView
               recipe={activeRecipe}
-              onEdit={() => setEditing(activeRecipe)}
+              onEdit={() => {
+                setEditingIsNew(false)
+                setEditing(activeRecipe)
+              }}
               onDelete={() => setDeleteTarget(activeRecipe.id)}
               onGenerateShoppingList={() => {
                 useApp.getState().generateShoppingListFromRecipe(activeRecipe.id)
@@ -301,7 +313,8 @@ export default function App() {
                   ? () => setCategoryDialog({ open: true, category: activeCategory.id })
                   : undefined
               }
-              onNewRecipe={() =>
+              onNewRecipe={() => {
+                setEditingIsNew(true)
                 setEditing(
                   emptyRecipe(
                     activeCategoryId && activeCategoryId !== FAVORITES_ID
@@ -309,7 +322,7 @@ export default function App() {
                       : categories[0]?.id ?? '',
                   ),
                 )
-              }
+              }}
               onImport={() => setImportOpen(true)}
             />
           )}
@@ -332,6 +345,7 @@ export default function App() {
         }}
         onImported={(recipe, review) => {
           if (review) {
+            setEditingIsNew(true)
             setEditing(recipe)
           } else {
             useApp.getState().saveRecipe(recipe).then(() => {

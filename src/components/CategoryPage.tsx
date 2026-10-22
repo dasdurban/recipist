@@ -539,7 +539,7 @@ export function CategoryPage({
           open={colorOpen}
           onClose={() => setColorOpen(false)}
           title={favoritesOnly ? 'Favorites color' : 'All recipes color'}
-          size="sm"
+          size="md"
           footer={
             <button className="btn-primary" onClick={() => setColorOpen(false)}>
               Done
