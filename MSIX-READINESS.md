@@ -323,7 +323,7 @@ Partner Center walks through these; the ones that need thought are marked.
 
 | Section | Notes |
 | --- | --- |
-| Pricing and availability | Free, all markets |
+| Pricing and availability | Paid app, one-time purchase; all markets |
 | Properties | Category, and the privacy policy URL: `https://dasdurban.github.io/recipist/privacy-policy.html` |
 | Age ratings | Questionnaire |
 | Packages | Upload the `.msix` |
@@ -338,6 +338,19 @@ attribute instead. 2004 is well past end of support, so this costs nothing.
 The `runFullTrust` capability is a restricted capability, so the submission has
 to declare it and probably justify it. For a packaged Win32 app this is
 routine: the app is a normal desktop program, not a sandboxed UWP app.
+
+### The app is a paid, one-time purchase
+
+Both stores sell it the same way: buy once, keep it. In Partner Center, pick a
+base price under **Pricing and availability** and let the Store derive the
+per-market prices; do not add subscription or in-app purchase products. The
+"Pay once. Cook forever." line in the listing is then accurate rather than a
+claim that needs hedging, and it is one of the stronger things this app has to
+say against subscription competitors.
+
+The Store does support time-limited trials for paid apps, but a trial needs the
+app to read and honour the licence state, which nothing in the build does yet.
+Leave trials off until that is implemented.
 
 ## Screenshots
 

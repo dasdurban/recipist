@@ -15,7 +15,7 @@ Paired with `src-tauri/MAS-READINESS.md`, which covers the build side.
 | Secondary category | Lifestyle (optional; leave empty if unsure) |
 | Content rights | Does not contain third-party content |
 | Age rating | 4+ (see the questionnaire below) |
-| Price | Free |
+| Price | Paid, one-time purchase (set the tier in App Store Connect) |
 
 The SKU is internal only. It cannot be changed after the record is created, but
 nothing user-visible depends on it.
