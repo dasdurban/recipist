@@ -708,6 +708,20 @@ pub fn run() {
             #[cfg(desktop)]
             if let Some(window) = app.get_webview_window("main") {
                 keep_window_on_screen(&window);
+
+                // The window is created hidden so the saved geometry is applied
+                // before it is ever mapped: on Linux a window that is already
+                // on screen gets placed by the window manager, and the resize
+                // that follows reads as a jump at best and is ignored at worst.
+                // The state plugin shows it once the geometry is restored — but
+                // it does that from a chain of fallible calls, so if anything in
+                // that chain failed the app would come up invisible. Showing it
+                // here is the difference between "geometry ignored" and "app
+                // looks dead".
+                if !window.is_visible().unwrap_or(false) {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
             }
 
             Ok(())
