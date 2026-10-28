@@ -6,6 +6,11 @@ import type {
   EventRecipeLink,
   EventShoppingItem,
   EventTodo,
+  MealPlan,
+  MealPlanEntry,
+  MealPlanIngredientCheck,
+  MealPlanShoppingItem,
+  MealPlanTodo,
   Recipe,
   RecipeOrder,
   Settings,
@@ -27,6 +32,11 @@ export async function createBackup(settings: Settings): Promise<BackupFile> {
     eventIngredientChecks,
     eventTodos,
     orders,
+    mealPlans,
+    mealPlanEntries,
+    mealPlanShoppingItems,
+    mealPlanIngredientChecks,
+    mealPlanTodos,
   ] = await Promise.all([
     db.categories.toArray(),
     db.recipes.toArray(),
@@ -37,6 +47,11 @@ export async function createBackup(settings: Settings): Promise<BackupFile> {
     db.eventIngredientChecks.toArray(),
     db.eventTodos.toArray(),
     db.recipeOrders.toArray(),
+    db.mealPlans.toArray(),
+    db.mealPlanEntries.toArray(),
+    db.mealPlanShoppingItems.toArray(),
+    db.mealPlanIngredientChecks.toArray(),
+    db.mealPlanTodos.toArray(),
   ])
   return {
     app: 'the-recipe-app',
@@ -52,6 +67,11 @@ export async function createBackup(settings: Settings): Promise<BackupFile> {
     eventIngredientChecks,
     eventTodos,
     recipeOrders: orders,
+    mealPlans,
+    mealPlanEntries,
+    mealPlanShoppingItems,
+    mealPlanIngredientChecks,
+    mealPlanTodos,
   }
 }
 
@@ -139,6 +159,11 @@ export function parseBackupText(text: string): ParsedBackup {
       eventIngredientChecks: (obj.eventIngredientChecks as EventIngredientCheck[] | undefined) ?? [],
       eventTodos: (obj.eventTodos as EventTodo[] | undefined) ?? [],
       recipeOrders: (obj.recipeOrders as RecipeOrder[] | undefined) ?? [],
+      mealPlans: (obj.mealPlans as MealPlan[] | undefined) ?? [],
+      mealPlanEntries: (obj.mealPlanEntries as MealPlanEntry[] | undefined) ?? [],
+      mealPlanShoppingItems: (obj.mealPlanShoppingItems as MealPlanShoppingItem[] | undefined) ?? [],
+      mealPlanIngredientChecks: (obj.mealPlanIngredientChecks as MealPlanIngredientCheck[] | undefined) ?? [],
+      mealPlanTodos: (obj.mealPlanTodos as MealPlanTodo[] | undefined) ?? [],
     },
     stats: { categories: categories.length, recipes: recipes.length, shoppingLists: lists.length },
   }

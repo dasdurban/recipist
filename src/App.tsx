@@ -12,6 +12,7 @@ import { onImportUrl } from './lib/deepLink'
 import { ShoppingListsPage } from './components/ShoppingListsPage'
 import { ShoppingListView } from './components/ShoppingListView'
 import { EventPlannerPage } from './components/EventPlannerPage'
+import { MealPlannerPage } from './components/MealPlannerPage'
 import { SettingsPanel } from './components/SettingsPanel'
 import { Confirm } from './components/ui/Confirm'
 import { Toasts } from './components/ui/Toasts'
@@ -50,6 +51,7 @@ export default function App() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [shoppingListsOpen, setShoppingListsOpen] = useState(false)
   const [eventPlannerOpen, setEventPlannerOpen] = useState(false)
+  const [mealPlannerOpen, setMealPlannerOpen] = useState(false)
   const activeShoppingListId = useApp((s) => s.activeShoppingListId)
 
   // one unified back: editor → list detail → lists page → planner → recipe → category → home
@@ -58,6 +60,7 @@ export default function App() {
       activeShoppingListId ||
       shoppingListsOpen ||
       eventPlannerOpen ||
+      mealPlannerOpen ||
       activeRecipeId ||
       activeCategoryId,
   )
@@ -76,6 +79,10 @@ export default function App() {
     }
     if (eventPlannerOpen) {
       setEventPlannerOpen(false) // planner → previous page (category/home)
+      return
+    }
+    if (mealPlannerOpen) {
+      setMealPlannerOpen(false)
       return
     }
     if (activeRecipeId) {
@@ -201,6 +208,23 @@ export default function App() {
     return () => window.removeEventListener('recipist:event-planner', handler as EventListener)
   }, [])
 
+  // navigate to the meal planner view
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setEditing(null)
+      setCategoryDialog({ open: false, category: null })
+      setDeleteTarget(null)
+      setSettingsOpen(false)
+      setShoppingListsOpen(false)
+      setEventPlannerOpen(false)
+      setMealPlannerOpen(true)
+      const mealPlanId = (e as CustomEvent<{ mealPlanId?: string }>).detail?.mealPlanId ?? null
+      useApp.getState().setActiveMealPlan(mealPlanId)
+    }
+    window.addEventListener('recipist:meal-planner', handler as EventListener)
+    return () => window.removeEventListener('recipist:meal-planner', handler as EventListener)
+  }, [])
+
   // open a specific shopping list from the lists page
   useEffect(() => {
     const handler = (e: Event) => {
@@ -278,6 +302,8 @@ export default function App() {
             <ShoppingListsPage />
           ) : eventPlannerOpen ? (
             <EventPlannerPage />
+          ) : mealPlannerOpen ? (
+            <MealPlannerPage />
           ) : editing ? (
             <RecipeEditor
               recipe={editing}

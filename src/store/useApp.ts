@@ -8,6 +8,12 @@ import type {
   EventRecipeLink,
   EventShoppingItem,
   EventTodo,
+  MealPlan,
+  MealPlanEntry,
+  MealPlanIngredientCheck,
+  MealPlanShoppingItem,
+  MealPlanTodo,
+  MealSlot,
   Recipe,
   RecipeOrder,
   ShoppingList,
@@ -30,6 +36,14 @@ export interface Toast {
   tone: 'info' | 'success' | 'error'
 }
 
+function mondayOf(d: Date): string {
+  const date = new Date(d)
+  const day = date.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  date.setDate(date.getDate() + diff)
+  return date.toISOString().slice(0, 10)
+}
+
 interface AppState {
   ready: boolean
   categories: Category[]
@@ -46,11 +60,19 @@ interface AppState {
   eventIngredientChecks: EventIngredientCheck[]
   eventTodos: EventTodo[]
 
+  // meal planner (weekly)
+  mealPlans: MealPlan[]
+  mealPlanEntries: MealPlanEntry[]
+  mealPlanShoppingItems: MealPlanShoppingItem[]
+  mealPlanIngredientChecks: MealPlanIngredientCheck[]
+  mealPlanTodos: MealPlanTodo[]
+
   // navigation
   activeCategoryId: string | null
   activeRecipeId: string | null
   activeShoppingListId: string | null
   activeEventId: string | null
+  activeMealPlanId: string | null
   sidebarOpen: boolean
   settingsOpen: boolean
 
@@ -145,6 +167,26 @@ interface AppState {
   toggleEventTodo: (todoId: string) => Promise<void>
   deleteEventTodo: (todoId: string) => Promise<void>
 
+  // meal planner (weekly)
+  setActiveMealPlan: (id: string | null) => void
+  createMealPlan: (name: string, weekStart: string) => Promise<MealPlan>
+  updateMealPlan: (id: string, patch: Partial<MealPlan>) => Promise<void>
+  deleteMealPlan: (id: string) => Promise<void>
+  addMealPlanEntry: (mealPlanId: string, recipeId: string, day: number, slot: MealSlot) => Promise<void>
+  removeMealPlanEntry: (entryId: string) => Promise<void>
+  syncMealPlanShoppingItems: (mealPlanId: string) => Promise<void>
+  toggleMealPlanPantry: (mealPlanId: string, key: string) => Promise<void>
+  toggleMealPlanShoppingItem: (itemId: string) => Promise<void>
+  setMealPlanShoppingItemsChecked: (itemIds: string[], checked: boolean) => Promise<void>
+  addMealPlanShoppingItem: (
+    mealPlanId: string,
+    item: { name: string; quantity?: number; unit?: string; raw?: string },
+  ) => Promise<void>
+  deleteMealPlanShoppingItem: (itemId: string) => Promise<void>
+  addMealPlanTodo: (mealPlanId: string, text: string) => Promise<void>
+  toggleMealPlanTodo: (todoId: string) => Promise<void>
+  deleteMealPlanTodo: (todoId: string) => Promise<void>
+
   importData: (data: {
     categories: Category[]
     recipes: Recipe[]
@@ -156,6 +198,11 @@ interface AppState {
     eventIngredientChecks?: EventIngredientCheck[]
     eventTodos?: EventTodo[]
     recipeOrders?: RecipeOrder[]
+    mealPlans?: MealPlan[]
+    mealPlanEntries?: MealPlanEntry[]
+    mealPlanShoppingItems?: MealPlanShoppingItem[]
+    mealPlanIngredientChecks?: MealPlanIngredientCheck[]
+    mealPlanTodos?: MealPlanTodo[]
   }, mode: 'merge' | 'replace') => Promise<void>
 
   toast: (message: string, tone?: Toast['tone']) => void
@@ -272,10 +319,17 @@ export const useApp = create<AppState>((set, get) => ({
   eventIngredientChecks: [],
   eventTodos: [],
 
+  mealPlans: [],
+  mealPlanEntries: [],
+  mealPlanShoppingItems: [],
+  mealPlanIngredientChecks: [],
+  mealPlanTodos: [],
+
   activeCategoryId: null,
   activeRecipeId: null,
   activeShoppingListId: null,
   activeEventId: null,
+  activeMealPlanId: null,
   sidebarOpen: false,
   settingsOpen: false,
   timerDuration: 0,
@@ -287,7 +341,7 @@ export const useApp = create<AppState>((set, get) => ({
   toasts: [],
 
   async init() {
-    const [settings, categories, recipes, orders, lists, events, eventRecipes, eventItems, eventChecks, eventTodos] =
+    const [settings, categories, recipes, orders, lists, events, eventRecipes, eventItems, eventChecks, eventTodos, mealPlans, mealPlanEntries, mealPlanItems, mealPlanChecks, mealPlanTodos] =
       await Promise.all([
         loadSettings(),
         db.categories.toArray(),
@@ -299,6 +353,11 @@ export const useApp = create<AppState>((set, get) => ({
         db.eventShoppingItems.toArray(),
         db.eventIngredientChecks.toArray(),
         db.eventTodos.toArray(),
+        db.mealPlans.toArray(),
+        db.mealPlanEntries.toArray(),
+        db.mealPlanShoppingItems.toArray(),
+        db.mealPlanIngredientChecks.toArray(),
+        db.mealPlanTodos.toArray(),
       ])
     set({
       settings,
@@ -311,13 +370,18 @@ export const useApp = create<AppState>((set, get) => ({
       eventShoppingItems: eventItems,
       eventIngredientChecks: eventChecks,
       eventTodos,
+      mealPlans: mealPlans.sort((a, b) => b.createdAt - a.createdAt),
+      mealPlanEntries,
+      mealPlanShoppingItems: mealPlanItems,
+      mealPlanIngredientChecks: mealPlanChecks,
+      mealPlanTodos,
       ready: true,
     })
     applyTheme(settings.theme)
   },
 
   async refresh() {
-    const [categories, recipes, orders, lists, events, eventRecipes, eventItems, eventChecks, eventTodos] =
+    const [categories, recipes, orders, lists, events, eventRecipes, eventItems, eventChecks, eventTodos, mealPlans, mealPlanEntries, mealPlanItems, mealPlanChecks, mealPlanTodos] =
       await Promise.all([
         db.categories.toArray(),
         db.recipes.toArray(),
@@ -328,6 +392,11 @@ export const useApp = create<AppState>((set, get) => ({
         db.eventShoppingItems.toArray(),
         db.eventIngredientChecks.toArray(),
         db.eventTodos.toArray(),
+        db.mealPlans.toArray(),
+        db.mealPlanEntries.toArray(),
+        db.mealPlanShoppingItems.toArray(),
+        db.mealPlanIngredientChecks.toArray(),
+        db.mealPlanTodos.toArray(),
       ])
     set({
       categories: sortCategories(categories),
@@ -339,6 +408,11 @@ export const useApp = create<AppState>((set, get) => ({
       eventShoppingItems: eventItems,
       eventIngredientChecks: eventChecks,
       eventTodos,
+      mealPlans: mealPlans.sort((a, b) => b.createdAt - a.createdAt),
+      mealPlanEntries,
+      mealPlanShoppingItems: mealPlanItems,
+      mealPlanIngredientChecks: mealPlanChecks,
+      mealPlanTodos,
     })
   },
 
@@ -348,11 +422,12 @@ export const useApp = create<AppState>((set, get) => ({
       activeRecipeId: null,
       activeShoppingListId: null,
       activeEventId: null,
+      activeMealPlanId: null,
       sidebarOpen: false,
     })
   },
   openRecipe(id) {
-    set({ activeRecipeId: id, activeShoppingListId: null, activeEventId: null, sidebarOpen: false })
+    set({ activeRecipeId: id, activeShoppingListId: null, activeEventId: null, activeMealPlanId: null, sidebarOpen: false })
   },
   closeRecipe() {
     set({ activeRecipeId: null })
@@ -368,6 +443,9 @@ export const useApp = create<AppState>((set, get) => ({
   },
   setActiveEvent(id) {
     set({ activeEventId: id, sidebarOpen: false })
+  },
+  setActiveMealPlan(id) {
+    set({ activeMealPlanId: id, sidebarOpen: false })
   },
   openShoppingList(id) {
     set({ activeShoppingListId: id, sidebarOpen: false })
@@ -870,6 +948,189 @@ export const useApp = create<AppState>((set, get) => ({
     await get().refresh()
   },
 
+  // --------------------------------------------------------- meal planner (weekly)
+
+  async createMealPlan(name, weekStart) {
+    const now = Date.now()
+    const plan: MealPlan = {
+      id: uid('mpl_'),
+      name: name.trim() || 'New meal plan',
+      weekStart: weekStart || mondayOf(new Date()),
+      createdAt: now,
+      updatedAt: now,
+    }
+    await db.mealPlans.put(plan)
+    set({ activeMealPlanId: plan.id })
+    await get().refresh()
+    return plan
+  },
+
+  async updateMealPlan(id, patch) {
+    await db.mealPlans.update(id, { ...patch, updatedAt: Date.now() })
+    await get().refresh()
+  },
+
+  async deleteMealPlan(id) {
+    await db.transaction(
+      'rw',
+      db.mealPlans,
+      db.mealPlanEntries,
+      db.mealPlanShoppingItems,
+      db.mealPlanIngredientChecks,
+      db.mealPlanTodos,
+      async () => {
+        await db.mealPlanEntries.where('mealPlanId').equals(id).delete()
+        await db.mealPlanShoppingItems.where('mealPlanId').equals(id).delete()
+        await db.mealPlanIngredientChecks.where('mealPlanId').equals(id).delete()
+        await db.mealPlanTodos.where('mealPlanId').equals(id).delete()
+        await db.mealPlans.delete(id)
+      },
+    )
+    set((s) => ({ activeMealPlanId: s.activeMealPlanId === id ? null : s.activeMealPlanId }))
+    await get().refresh()
+  },
+
+  async addMealPlanEntry(mealPlanId, recipeId, day, slot) {
+    const existing = await db.mealPlanEntries
+      .where('[mealPlanId+recipeId]')
+      .equals([mealPlanId, recipeId])
+      .toArray()
+    if (existing.some((e) => e.day === day && e.slot === slot)) return
+    await db.mealPlanEntries.put({ id: uid('mple_'), mealPlanId, recipeId, day, slot, addedAt: Date.now() })
+    await get().syncMealPlanShoppingItems(mealPlanId)
+    await get().refresh()
+  },
+
+  async removeMealPlanEntry(entryId) {
+    const entry = await db.mealPlanEntries.get(entryId)
+    if (!entry) return
+    await db.mealPlanEntries.delete(entryId)
+    await get().syncMealPlanShoppingItems(entry.mealPlanId)
+    await get().refresh()
+  },
+
+  async syncMealPlanShoppingItems(mealPlanId) {
+    const entries = await db.mealPlanEntries.where('mealPlanId').equals(mealPlanId).toArray()
+    const recipeIds = [...new Set(entries.map((e) => e.recipeId))]
+    const recipes = recipeIds.length ? await db.recipes.where('id').anyOf(recipeIds).toArray() : []
+
+    const wanted = combineIngredients(recipes)
+
+    const [rows, checks] = await Promise.all([
+      db.mealPlanShoppingItems.where('mealPlanId').equals(mealPlanId).toArray(),
+      db.mealPlanIngredientChecks.where('mealPlanId').equals(mealPlanId).toArray(),
+    ])
+    const pantryKeys = new Set(checks.filter((c) => c.pantry).map((c) => c.key))
+    const autoRows = rows.filter((r) => !r.manual)
+
+    const toDelete: string[] = []
+    for (const row of autoRows) {
+      if (!wanted.some((w) => w.key === row.key) || pantryKeys.has(row.key)) toDelete.push(row.id)
+    }
+    const now = Date.now()
+    const toPut: MealPlanShoppingItem[] = []
+    for (const ing of wanted) {
+      if (pantryKeys.has(ing.key)) continue
+      const existing = autoRows.find((r) => r.key === ing.key)
+      if (!existing) {
+        toPut.push({
+          id: uid('mpli_'),
+          mealPlanId,
+          key: ing.key,
+          name: ing.name,
+          quantity: ing.quantity,
+          unit: ing.unit,
+          raw: ing.label,
+          manual: false,
+          checked: false,
+          createdAt: now,
+        })
+      } else if (
+        existing.raw !== ing.label ||
+        existing.name !== ing.name ||
+        existing.quantity !== ing.quantity ||
+        existing.unit !== ing.unit
+      ) {
+        toPut.push({ ...existing, name: ing.name, quantity: ing.quantity, unit: ing.unit, raw: ing.label })
+      }
+    }
+    if (!toDelete.length && !toPut.length) return
+    await db.transaction('rw', db.mealPlanShoppingItems, async () => {
+      if (toDelete.length) await db.mealPlanShoppingItems.bulkDelete(toDelete)
+      if (toPut.length) await db.mealPlanShoppingItems.bulkPut(toPut)
+    })
+  },
+
+  async toggleMealPlanPantry(mealPlanId, key) {
+    const id = `${mealPlanId}:${key}`
+    const existing = await db.mealPlanIngredientChecks.get(id)
+    const pantry = !existing?.pantry
+    if (existing) await db.mealPlanIngredientChecks.update(id, { pantry })
+    else await db.mealPlanIngredientChecks.put({ id, mealPlanId, key, pantry })
+    await get().syncMealPlanShoppingItems(mealPlanId)
+    await get().refresh()
+  },
+
+  async toggleMealPlanShoppingItem(itemId) {
+    const item = await db.mealPlanShoppingItems.get(itemId)
+    if (!item) return
+    await db.mealPlanShoppingItems.update(itemId, { checked: !item.checked })
+    await get().refresh()
+  },
+
+  async setMealPlanShoppingItemsChecked(itemIds, checked) {
+    if (!itemIds.length) return
+    const rows = await db.mealPlanShoppingItems.bulkGet(itemIds)
+    const changed = rows.filter((r) => r && r.checked !== checked).map((r) => ({ ...r!, checked }))
+    if (!changed.length) return
+    await db.mealPlanShoppingItems.bulkPut(changed)
+    await get().refresh()
+  },
+
+  async addMealPlanShoppingItem(mealPlanId, item) {
+    await db.mealPlanShoppingItems.put({
+      id: uid('mpli_'),
+      mealPlanId,
+      key: '',
+      name: item.name,
+      quantity: item.quantity,
+      unit: item.unit,
+      raw: item.raw ?? item.name,
+      manual: true,
+      checked: false,
+      createdAt: Date.now(),
+    })
+    await get().refresh()
+  },
+
+  async deleteMealPlanShoppingItem(itemId) {
+    await db.mealPlanShoppingItems.delete(itemId)
+    await get().refresh()
+  },
+
+  async addMealPlanTodo(mealPlanId, text) {
+    await db.mealPlanTodos.put({
+      id: uid('mplt_'),
+      mealPlanId,
+      text: text.trim(),
+      checked: false,
+      createdAt: Date.now(),
+    })
+    await get().refresh()
+  },
+
+  async toggleMealPlanTodo(todoId) {
+    const todo = await db.mealPlanTodos.get(todoId)
+    if (!todo) return
+    await db.mealPlanTodos.update(todoId, { checked: !todo.checked })
+    await get().refresh()
+  },
+
+  async deleteMealPlanTodo(todoId) {
+    await db.mealPlanTodos.delete(todoId)
+    await get().refresh()
+  },
+
   async importData(data, mode) {
     await db.transaction(
       'rw',
@@ -884,6 +1145,11 @@ export const useApp = create<AppState>((set, get) => ({
         db.eventIngredientChecks,
         db.eventTodos,
         db.recipeOrders,
+        db.mealPlans,
+        db.mealPlanEntries,
+        db.mealPlanShoppingItems,
+        db.mealPlanIngredientChecks,
+        db.mealPlanTodos,
       ],
       async () => {
         if (mode === 'replace') {
@@ -897,6 +1163,11 @@ export const useApp = create<AppState>((set, get) => ({
             db.eventIngredientChecks.clear(),
             db.eventTodos.clear(),
             db.recipeOrders.clear(),
+            db.mealPlans.clear(),
+            db.mealPlanEntries.clear(),
+            db.mealPlanShoppingItems.clear(),
+            db.mealPlanIngredientChecks.clear(),
+            db.mealPlanTodos.clear(),
           ])
         }
         await db.categories.bulkPut(data.categories)
@@ -910,6 +1181,13 @@ export const useApp = create<AppState>((set, get) => ({
         }
         if (data.eventTodos) await db.eventTodos.bulkPut(data.eventTodos)
         if (data.recipeOrders) await db.recipeOrders.bulkPut(data.recipeOrders)
+        if (data.mealPlans) await db.mealPlans.bulkPut(data.mealPlans)
+        if (data.mealPlanEntries) await db.mealPlanEntries.bulkPut(data.mealPlanEntries)
+        if (data.mealPlanShoppingItems) await db.mealPlanShoppingItems.bulkPut(data.mealPlanShoppingItems)
+        if (data.mealPlanIngredientChecks) {
+          await db.mealPlanIngredientChecks.bulkPut(data.mealPlanIngredientChecks)
+        }
+        if (data.mealPlanTodos) await db.mealPlanTodos.bulkPut(data.mealPlanTodos)
         if (data.settings && mode === 'replace') {
           await db.settings.put({ ...data.settings, id: 'settings' })
         }

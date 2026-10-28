@@ -6,6 +6,11 @@ import type {
   EventRecipeLink,
   EventShoppingItem,
   EventTodo,
+  MealPlan,
+  MealPlanEntry,
+  MealPlanIngredientCheck,
+  MealPlanShoppingItem,
+  MealPlanTodo,
   Recipe,
   RecipeOrder,
   Settings,
@@ -27,6 +32,11 @@ export class RecipistDB extends Dexie {
   eventIngredientChecks!: Table<EventIngredientCheck, string>
   eventTodos!: Table<EventTodo, string>
   recipeOrders!: Table<RecipeOrder, string>
+  mealPlans!: Table<MealPlan, string>
+  mealPlanEntries!: Table<MealPlanEntry, string>
+  mealPlanShoppingItems!: Table<MealPlanShoppingItem, string>
+  mealPlanIngredientChecks!: Table<MealPlanIngredientCheck, string>
+  mealPlanTodos!: Table<MealPlanTodo, string>
 
   constructor() {
     super('recipist')
@@ -95,6 +105,25 @@ export class RecipistDB extends Dexie {
       eventIngredientChecks: 'id, eventId, [eventId+key]',
       eventTodos: 'id, eventId, checked',
       recipeOrders: 'id, viewId, recipeId, [viewId+recipeId], [viewId+position]',
+    })
+    // Meal Planner: weekly meal plans with day/slot assignment, mirroring the
+    // Event Planner's shopping list, pantry checks and to-do list.
+    this.version(6).stores({
+      categories: 'id, name, order, createdAt',
+      recipes: 'id, *categoryIds, title, updatedAt, favorite',
+      settings: 'id',
+      shoppingLists: 'id, recipeId, createdAt, updatedAt',
+      events: 'id, name, createdAt',
+      eventRecipes: 'id, eventId, recipeId, [eventId+recipeId]',
+      eventShoppingItems: 'id, eventId, manual, checked, [eventId+key]',
+      eventIngredientChecks: 'id, eventId, [eventId+key]',
+      eventTodos: 'id, eventId, checked',
+      recipeOrders: 'id, viewId, recipeId, [viewId+recipeId], [viewId+position]',
+      mealPlans: 'id, name, weekStart, createdAt',
+      mealPlanEntries: 'id, mealPlanId, recipeId, [mealPlanId+recipeId], [mealPlanId+day], [mealPlanId+slot]',
+      mealPlanShoppingItems: 'id, mealPlanId, manual, checked, [mealPlanId+key]',
+      mealPlanIngredientChecks: 'id, mealPlanId, [mealPlanId+key]',
+      mealPlanTodos: 'id, mealPlanId, checked',
     })
   }
 }

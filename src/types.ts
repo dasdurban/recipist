@@ -135,6 +135,61 @@ export interface EventTodo {
   createdAt: number
 }
 
+/** A weekly meal plan: a named plan anchored to a Monday. */
+export interface MealPlan {
+  id: string
+  name: string
+  /** ISO date (yyyy-mm-dd) of the Monday the plan starts on. */
+  weekStart: string
+  createdAt: number
+  updatedAt: number
+}
+
+/** A recipe assigned to one slot of one day of a meal plan. */
+export interface MealPlanEntry {
+  id: string
+  mealPlanId: string
+  recipeId: string
+  /** 0..6, Monday..Sunday */
+  day: number
+  /** breakfast | lunch | dinner | snack */
+  slot: MealSlot
+  addedAt: number
+}
+
+export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack'
+
+/** One row of a meal plan's shopping list (auto + manual), same shape as an event's. */
+export interface MealPlanShoppingItem {
+  id: string
+  mealPlanId: string
+  key: string
+  name: string
+  quantity?: number
+  unit?: string
+  raw?: string
+  manual: boolean
+  checked: boolean
+  createdAt: number
+}
+
+/** Pantry flag for one auto ingredient of a meal plan. */
+export interface MealPlanIngredientCheck {
+  id: string
+  mealPlanId: string
+  key: string
+  pantry: boolean
+}
+
+/** A to-do item of a meal plan. */
+export interface MealPlanTodo {
+  id: string
+  mealPlanId: string
+  text: string
+  checked: boolean
+  createdAt: number
+}
+
 /**
  * A saved position for one recipe inside one view.
  *
@@ -263,4 +318,10 @@ export interface BackupFile {
   eventTodos?: EventTodo[]
   // Saved thumbnail order. Absent from backups made before it was recorded.
   recipeOrders?: RecipeOrder[]
+  // Meal Planner data (optional so older backups still load)
+  mealPlans?: MealPlan[]
+  mealPlanEntries?: MealPlanEntry[]
+  mealPlanShoppingItems?: MealPlanShoppingItem[]
+  mealPlanIngredientChecks?: MealPlanIngredientCheck[]
+  mealPlanTodos?: MealPlanTodo[]
 }

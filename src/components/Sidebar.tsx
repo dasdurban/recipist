@@ -19,6 +19,7 @@ export function Sidebar() {
   const recipes = useApp((s) => s.recipes)
   const shoppingLists = useApp((s) => s.shoppingLists)
   const events = useApp((s) => s.events)
+const mealPlans = useApp((s) => s.mealPlans)
   const activeCategoryId = useApp((s) => s.activeCategoryId)
   const settings = useApp((s) => s.settings)
   const sidebarOpen = useApp((s) => s.sidebarOpen)
@@ -308,6 +309,17 @@ export function Sidebar() {
               <span className="flex-1 min-w-0 truncate">Event planner</span>
               {events.length > 0 && (
                 <span className="text-xs text-content-muted tabular-nums">{events.length}</span>
+              )}
+            </button>
+
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('recipist:meal-planner'))}
+              className="w-full flex items-center gap-2.5 rounded-xl px-2 py-2 text-sm text-left transition-colors hover:bg-surface-2"
+            >
+              <CalendarDays className="h-5 w-5 shrink-0" />
+              <span className="flex-1 min-w-0 truncate">Meal planner</span>
+              {mealPlans.length > 0 && (
+                <span className="text-xs text-content-muted tabular-nums">{mealPlans.length}</span>
               )}
             </button>
 

@@ -55,6 +55,11 @@ export async function seedFromBundledBackup(): Promise<boolean> {
       db.eventIngredientChecks,
       db.eventTodos,
       db.recipeOrders,
+      db.mealPlans,
+      db.mealPlanEntries,
+      db.mealPlanShoppingItems,
+      db.mealPlanIngredientChecks,
+      db.mealPlanTodos,
     ],
     async () => {
       await db.categories.bulkPut(seed.categories ?? [])
@@ -70,6 +75,15 @@ export async function seedFromBundledBackup(): Promise<boolean> {
       }
       if (seed.eventTodos?.length) await db.eventTodos.bulkPut(seed.eventTodos)
       if (seed.recipeOrders?.length) await db.recipeOrders.bulkPut(seed.recipeOrders)
+      if (seed.mealPlans?.length) await db.mealPlans.bulkPut(seed.mealPlans)
+      if (seed.mealPlanEntries?.length) await db.mealPlanEntries.bulkPut(seed.mealPlanEntries)
+      if (seed.mealPlanShoppingItems?.length) {
+        await db.mealPlanShoppingItems.bulkPut(seed.mealPlanShoppingItems)
+      }
+      if (seed.mealPlanIngredientChecks?.length) {
+        await db.mealPlanIngredientChecks.bulkPut(seed.mealPlanIngredientChecks)
+      }
+      if (seed.mealPlanTodos?.length) await db.mealPlanTodos.bulkPut(seed.mealPlanTodos)
       if (seed.settings) {
         await db.settings.put({ ...DEFAULT_SETTINGS, ...seed.settings, id: 'settings' })
       }
