@@ -2,8 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
 import {
-  CalendarDays,
-  ChevronLeft,
+  CalendarDays,
   Clock,
   LayoutGrid,
   List,
@@ -90,6 +89,31 @@ export function EventPlannerPage() {
   }, [createOpen])
 
   const event = events.find((e) => e.id === activeEventId) ?? null
+
+
+  // Open something as soon as the planner is shown: the last event the user had
+  // open, else the most recent one, else a fresh empty event so the planner is
+  // never a dead end.
+  const creatingRef = useRef(false)
+  useEffect(() => {
+    if (event) return
+    const remembered = settings.lastEventId
+      ? events.find((e) => e.id === settings.lastEventId)
+      : undefined
+    if (remembered) {
+      setActiveEvent(remembered.id)
+      return
+    }
+    if (events.length) {
+      setActiveEvent(events[0].id)
+      return
+    }
+    if (creatingRef.current) return
+    creatingRef.current = true
+    void createEvent('New event').finally(() => {
+      creatingRef.current = false
+    })
+  }, [event, events, settings.lastEventId, setActiveEvent, createEvent])
 
   async function handleCreate() {
     const name = newName.trim() || 'New event'
@@ -256,7 +280,7 @@ export function EventPlannerPage() {
           </section>
 
         {event && (
-          <EventDetail event={event} onBack={() => setActiveEvent(null)} onDelete={() => handleDelete(event)} />
+          <EventDetail event={event} onDelete={() => handleDelete(event)} />
         )}
       </>
 
@@ -651,11 +675,9 @@ function EventPreviewCard({
 /** The selected event: header, recipes section, then the three columns. */
 function EventDetail({
   event,
-  onBack,
   onDelete,
 }: {
   event: EventPlan
-  onBack: () => void
   onDelete: () => void
 }) {
   const recipes = useApp((s) => s.recipes)
@@ -734,9 +756,6 @@ function EventDetail({
       {/* Event header: back, editable name, date */}
       <div className="card p-4 mb-5">
         <div className="flex items-center gap-2 flex-wrap">
-          <button className="btn-ghost !px-2 text-sm" onClick={onBack}>
-            <ChevronLeft size={16} /> All events
-          </button>
           <div className="flex-1 min-w-[12rem] flex items-center gap-2">
             <input
               value={nameDraft}

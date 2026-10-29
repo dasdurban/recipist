@@ -209,7 +209,7 @@ export default function App() {
       setMealPlannerOpen(false)
       setEventPlannerOpen(true)
       const eventId = (e as CustomEvent<{ eventId?: string }>).detail?.eventId ?? null
-      useApp.getState().setActiveEvent(eventId)
+      if (eventId) useApp.getState().setActiveEvent(eventId)
     }
     window.addEventListener('recipist:event-planner', handler as EventListener)
     return () => window.removeEventListener('recipist:event-planner', handler as EventListener)
@@ -226,7 +226,7 @@ export default function App() {
       setEventPlannerOpen(false)
       setMealPlannerOpen(true)
       const mealPlanId = (e as CustomEvent<{ mealPlanId?: string }>).detail?.mealPlanId ?? null
-      useApp.getState().setActiveMealPlan(mealPlanId)
+      if (mealPlanId) useApp.getState().setActiveMealPlan(mealPlanId)
     }
     window.addEventListener('recipist:meal-planner', handler as EventListener)
     return () => window.removeEventListener('recipist:meal-planner', handler as EventListener)

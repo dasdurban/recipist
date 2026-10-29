@@ -290,6 +290,10 @@ export interface Settings {
   mealPlannerColorSet: ColorSet
   /** how the events are laid out on the Event planner page */
   plannerView: PlannerView
+  /** last event the user opened, restored when the planner is reopened */
+  lastEventId?: string | null
+  /** last meal plan the user opened, restored when the planner is reopened */
+  lastMealPlanId?: string | null
   /** how the shopping lists are laid out on the Shopping lists page */
   shoppingView: ViewMode
   /** show the left nav as a drawer on small screens; on desktop it is docked */

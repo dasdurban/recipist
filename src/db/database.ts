@@ -143,6 +143,8 @@ export const DEFAULT_SETTINGS: Settings = {
   mealPlannerColorName: 'blue',
   mealPlannerColorSet: 'vivid',
   plannerView: 'cards',
+  lastEventId: null,
+  lastMealPlanId: null,
   shoppingView: 'cards',
   sidebarCollapsed: false,
   importProxy: 'https://api.allorigins.win/raw?url=',

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   CalendarDays,
-  ChevronLeft,
   LayoutGrid,
   List,
   ListTodo,
@@ -108,6 +107,32 @@ export function MealPlannerPage() {
   }, [createOpen])
 
   const plan = mealPlans.find((p) => p.id === activeMealPlanId) ?? null
+
+
+  // Open something as soon as the planner is shown: the last plan the user had
+  // open, else the most recent one, else a fresh empty plan for this week so the
+  // planner is never a dead end.
+  const creatingRef = useRef(false)
+  useEffect(() => {
+    if (plan) return
+    const remembered = settings.lastMealPlanId
+      ? mealPlans.find((p) => p.id === settings.lastMealPlanId)
+      : undefined
+    if (remembered) {
+      setActiveMealPlan(remembered.id)
+      return
+    }
+    if (mealPlans.length) {
+      setActiveMealPlan(mealPlans[0].id)
+      return
+    }
+    if (creatingRef.current) return
+    creatingRef.current = true
+    const monday = mondayOf(new Date())
+    void createMealPlan(defaultMealPlanName(monday), monday).finally(() => {
+      creatingRef.current = false
+    })
+  }, [plan, mealPlans, settings.lastMealPlanId, setActiveMealPlan, createMealPlan])
 
   async function handleCreate() {
     const name = newName.trim() || defaultMealPlanName(newWeek)
@@ -306,7 +331,7 @@ export function MealPlannerPage() {
         </section>
 
         {plan && (
-          <MealPlanDetail plan={plan} onBack={() => setActiveMealPlan(null)} onDelete={() => handleDelete(plan)} />
+          <MealPlanDetail plan={plan} onDelete={() => handleDelete(plan)} />
         )}
       </>
 
@@ -323,11 +348,9 @@ export function MealPlannerPage() {
 
 function MealPlanDetail({
   plan,
-  onBack,
   onDelete,
 }: {
   plan: MealPlan
-  onBack: () => void
   onDelete: () => void
 }) {
   const recipes = useApp((s) => s.recipes)
@@ -405,9 +428,6 @@ function MealPlanDetail({
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <button className="btn-soft" onClick={onBack}>
-          <ChevronLeft size={16} /> Back
-        </button>
         <div className="min-w-0 flex-1">
           <h3 className="font-bold text-lg truncate">{plan.name}</h3>
           <p className="text-sm text-content-muted">{fmtWeek(plan.weekStart)}</p>

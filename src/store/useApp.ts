@@ -455,9 +455,11 @@ export const useApp = create<AppState>((set, get) => ({
   },
   setActiveEvent(id) {
     set({ activeEventId: id, sidebarOpen: false })
+    void get().updateSettings({ lastEventId: id })
   },
   setActiveMealPlan(id) {
     set({ activeMealPlanId: id, sidebarOpen: false })
+    void get().updateSettings({ lastMealPlanId: id })
   },
   openShoppingList(id) {
     set({ activeShoppingListId: id, sidebarOpen: false })
@@ -779,6 +781,7 @@ export const useApp = create<AppState>((set, get) => ({
     }
     await db.events.put(event)
     set({ activeEventId: event.id })
+    void get().updateSettings({ lastEventId: event.id })
     await get().refresh()
     return event
   },
@@ -973,6 +976,7 @@ export const useApp = create<AppState>((set, get) => ({
     }
     await db.mealPlans.put(plan)
     set({ activeMealPlanId: plan.id })
+    void get().updateSettings({ lastMealPlanId: plan.id })
     await get().refresh()
     return plan
   },
