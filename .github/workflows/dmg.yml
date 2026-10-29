@@ -1,0 +1,53 @@
+name: dmg
+
+# macOS builds run on Apple hardware, so they cannot be produced on the
+# Windows dev machine. This workflow exists to emit a test .dmg on demand.
+#
+# It is deliberately separate from build.yml and only runs when the workflow
+# file itself changes or when dispatched by hand, so it is not paid for on
+# every push.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['**']
+    paths: ['.github/workflows/dmg.yml']
+
+jobs:
+  dmg:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # Universal binary so the same .dmg runs on Apple Silicon and Intel.
+      # The seed (public/preseed.json) is part of the frontend bundle, so it
+      # ships inside the app exactly as it does on Windows.
+      - name: Build the universal .dmg
+        run: npm run tauri:build -- --target universal-apple-darwin --bundles dmg
+
+      - name: Upload the .dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          if-no-files-found: error
+          retention-days: 14
+          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
