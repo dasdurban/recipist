@@ -190,6 +190,28 @@ export interface MealPlanTodo {
   createdAt: number
 }
 
+/** A reusable meal-plan template: recipes by day/slot, plus to-dos. */
+export interface MealPlanTemplate {
+  id: string
+  name: string
+  createdAt: number
+}
+
+export interface MealPlanTemplateEntry {
+  id: string
+  templateId: string
+  recipeId: string
+  /** 0..6, Monday..Sunday */
+  day: number
+  slot: MealSlot
+}
+
+export interface MealPlanTemplateTodo {
+  id: string
+  templateId: string
+  text: string
+}
+
 /**
  * A saved position for one recipe inside one view.
  *
@@ -331,4 +353,7 @@ export interface BackupFile {
   mealPlanShoppingItems?: MealPlanShoppingItem[]
   mealPlanIngredientChecks?: MealPlanIngredientCheck[]
   mealPlanTodos?: MealPlanTodo[]
+  mealPlanTemplates?: MealPlanTemplate[]
+  mealPlanTemplateEntries?: MealPlanTemplateEntry[]
+  mealPlanTemplateTodos?: MealPlanTemplateTodo[]
 }

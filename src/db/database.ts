@@ -11,6 +11,9 @@ import type {
   MealPlanIngredientCheck,
   MealPlanShoppingItem,
   MealPlanTodo,
+  MealPlanTemplate,
+  MealPlanTemplateEntry,
+  MealPlanTemplateTodo,
   Recipe,
   RecipeOrder,
   Settings,
@@ -37,6 +40,9 @@ export class RecipistDB extends Dexie {
   mealPlanShoppingItems!: Table<MealPlanShoppingItem, string>
   mealPlanIngredientChecks!: Table<MealPlanIngredientCheck, string>
   mealPlanTodos!: Table<MealPlanTodo, string>
+  mealPlanTemplates!: Table<MealPlanTemplate, string>
+  mealPlanTemplateEntries!: Table<MealPlanTemplateEntry, string>
+  mealPlanTemplateTodos!: Table<MealPlanTemplateTodo, string>
 
   constructor() {
     super('recipist')
@@ -124,6 +130,27 @@ export class RecipistDB extends Dexie {
       mealPlanShoppingItems: 'id, mealPlanId, manual, checked, [mealPlanId+key]',
       mealPlanIngredientChecks: 'id, mealPlanId, [mealPlanId+key]',
       mealPlanTodos: 'id, mealPlanId, checked',
+    })
+    // Meal-plan templates: save a week's schedule for reuse later.
+    this.version(7).stores({
+      categories: 'id, name, order, createdAt',
+      recipes: 'id, *categoryIds, title, updatedAt, favorite',
+      settings: 'id',
+      shoppingLists: 'id, recipeId, createdAt, updatedAt',
+      events: 'id, name, createdAt',
+      eventRecipes: 'id, eventId, recipeId, [eventId+recipeId]',
+      eventShoppingItems: 'id, eventId, manual, checked, [eventId+key]',
+      eventIngredientChecks: 'id, eventId, [eventId+key]',
+      eventTodos: 'id, eventId, checked',
+      recipeOrders: 'id, viewId, recipeId, [viewId+recipeId], [viewId+position]',
+      mealPlans: 'id, name, weekStart, createdAt',
+      mealPlanEntries: 'id, mealPlanId, recipeId, [mealPlanId+recipeId], [mealPlanId+day], [mealPlanId+slot]',
+      mealPlanShoppingItems: 'id, mealPlanId, manual, checked, [mealPlanId+key]',
+      mealPlanIngredientChecks: 'id, mealPlanId, [mealPlanId+key]',
+      mealPlanTodos: 'id, mealPlanId, checked',
+      mealPlanTemplates: 'id, name, createdAt',
+      mealPlanTemplateEntries: 'id, templateId, [templateId+day]',
+      mealPlanTemplateTodos: 'id, templateId',
     })
   }
 }

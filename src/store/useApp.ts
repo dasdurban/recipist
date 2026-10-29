@@ -13,6 +13,9 @@ import type {
   MealPlanIngredientCheck,
   MealPlanShoppingItem,
   MealPlanTodo,
+  MealPlanTemplate,
+  MealPlanTemplateEntry,
+  MealPlanTemplateTodo,
   MealSlot,
   Recipe,
   RecipeOrder,
@@ -77,6 +80,9 @@ interface AppState {
   mealPlanShoppingItems: MealPlanShoppingItem[]
   mealPlanIngredientChecks: MealPlanIngredientCheck[]
   mealPlanTodos: MealPlanTodo[]
+  mealPlanTemplates: MealPlanTemplate[]
+  mealPlanTemplateEntries: MealPlanTemplateEntry[]
+  mealPlanTemplateTodos: MealPlanTemplateTodo[]
 
   // navigation
   activeCategoryId: string | null
@@ -182,6 +188,9 @@ interface AppState {
   setActiveMealPlan: (id: string | null) => void
   createMealPlan: (name: string, weekStart: string) => Promise<MealPlan>
   duplicateMealPlan: (id: string, weekStart?: string) => Promise<MealPlan | undefined>
+  saveMealPlanAsTemplate: (planId: string, name: string) => Promise<MealPlanTemplate | undefined>
+  deleteMealPlanTemplate: (templateId: string) => Promise<void>
+  createMealPlanFromTemplate: (templateId: string, name: string, weekStart: string) => Promise<MealPlan | undefined>
   updateMealPlan: (id: string, patch: Partial<MealPlan>) => Promise<void>
   deleteMealPlan: (id: string) => Promise<void>
   addMealPlanEntry: (mealPlanId: string, recipeId: string, day: number, slot: MealSlot) => Promise<void>
@@ -215,6 +224,9 @@ interface AppState {
     mealPlanShoppingItems?: MealPlanShoppingItem[]
     mealPlanIngredientChecks?: MealPlanIngredientCheck[]
     mealPlanTodos?: MealPlanTodo[]
+    mealPlanTemplates?: MealPlanTemplate[]
+    mealPlanTemplateEntries?: MealPlanTemplateEntry[]
+    mealPlanTemplateTodos?: MealPlanTemplateTodo[]
   }, mode: 'merge' | 'replace') => Promise<void>
 
   toast: (message: string, tone?: Toast['tone']) => void
@@ -336,6 +348,9 @@ export const useApp = create<AppState>((set, get) => ({
   mealPlanShoppingItems: [],
   mealPlanIngredientChecks: [],
   mealPlanTodos: [],
+  mealPlanTemplates: [],
+  mealPlanTemplateEntries: [],
+  mealPlanTemplateTodos: [],
 
   activeCategoryId: null,
   activeRecipeId: null,
@@ -353,7 +368,7 @@ export const useApp = create<AppState>((set, get) => ({
   toasts: [],
 
   async init() {
-    const [settings, categories, recipes, orders, lists, events, eventRecipes, eventItems, eventChecks, eventTodos, mealPlans, mealPlanEntries, mealPlanItems, mealPlanChecks, mealPlanTodos] =
+    const [settings, categories, recipes, orders, lists, events, eventRecipes, eventItems, eventChecks, eventTodos, mealPlans, mealPlanEntries, mealPlanItems, mealPlanChecks, mealPlanTodos, mealPlanTemplates, mealPlanTemplateEntries, mealPlanTemplateTodos] =
       await Promise.all([
         loadSettings(),
         db.categories.toArray(),
@@ -370,6 +385,9 @@ export const useApp = create<AppState>((set, get) => ({
         db.mealPlanShoppingItems.toArray(),
         db.mealPlanIngredientChecks.toArray(),
         db.mealPlanTodos.toArray(),
+        db.mealPlanTemplates.toArray(),
+        db.mealPlanTemplateEntries.toArray(),
+        db.mealPlanTemplateTodos.toArray(),
       ])
     set({
       settings,
@@ -387,13 +405,16 @@ export const useApp = create<AppState>((set, get) => ({
       mealPlanShoppingItems: mealPlanItems,
       mealPlanIngredientChecks: mealPlanChecks,
       mealPlanTodos,
+      mealPlanTemplates: mealPlanTemplates.sort((a, b) => b.createdAt - a.createdAt),
+      mealPlanTemplateEntries,
+      mealPlanTemplateTodos,
       ready: true,
     })
     applyTheme(settings.theme)
   },
 
   async refresh() {
-    const [categories, recipes, orders, lists, events, eventRecipes, eventItems, eventChecks, eventTodos, mealPlans, mealPlanEntries, mealPlanItems, mealPlanChecks, mealPlanTodos] =
+    const [categories, recipes, orders, lists, events, eventRecipes, eventItems, eventChecks, eventTodos, mealPlans, mealPlanEntries, mealPlanItems, mealPlanChecks, mealPlanTodos, mealPlanTemplates, mealPlanTemplateEntries, mealPlanTemplateTodos] =
       await Promise.all([
         db.categories.toArray(),
         db.recipes.toArray(),
@@ -409,6 +430,9 @@ export const useApp = create<AppState>((set, get) => ({
         db.mealPlanShoppingItems.toArray(),
         db.mealPlanIngredientChecks.toArray(),
         db.mealPlanTodos.toArray(),
+        db.mealPlanTemplates.toArray(),
+        db.mealPlanTemplateEntries.toArray(),
+        db.mealPlanTemplateTodos.toArray(),
       ])
     set({
       categories: sortCategories(categories),
@@ -425,6 +449,9 @@ export const useApp = create<AppState>((set, get) => ({
       mealPlanShoppingItems: mealPlanItems,
       mealPlanIngredientChecks: mealPlanChecks,
       mealPlanTodos,
+      mealPlanTemplates: mealPlanTemplates.sort((a, b) => b.createdAt - a.createdAt),
+      mealPlanTemplateEntries,
+      mealPlanTemplateTodos,
     })
   },
 
@@ -1014,6 +1041,91 @@ export const useApp = create<AppState>((set, get) => ({
     await get().refresh()
     return plan
   },
+  async saveMealPlanAsTemplate(planId, name) {
+    const plan = await db.mealPlans.get(planId)
+    if (!plan) return undefined
+    const now = Date.now()
+    const template: MealPlanTemplate = {
+      id: uid('mpltpl_'),
+      name: name.trim() || plan.name,
+      createdAt: now,
+    }
+    await db.mealPlanTemplates.put(template)
+    const entries = await db.mealPlanEntries.where('mealPlanId').equals(planId).toArray()
+    if (entries.length) {
+      await db.mealPlanTemplateEntries.bulkPut(
+        entries.map((e) => ({
+          id: uid('mpltple_'),
+          templateId: template.id,
+          recipeId: e.recipeId,
+          day: e.day,
+          slot: e.slot,
+        })),
+      )
+    }
+    const todos = await db.mealPlanTodos.where('mealPlanId').equals(planId).toArray()
+    if (todos.length) {
+      await db.mealPlanTemplateTodos.bulkPut(
+        todos.map((t) => ({ id: uid('mpltplt_'), templateId: template.id, text: t.text })),
+      )
+    }
+    await get().refresh()
+    return template
+  },
+
+  async deleteMealPlanTemplate(templateId) {
+    await db.transaction(
+      'rw',
+      db.mealPlanTemplates,
+      db.mealPlanTemplateEntries,
+      db.mealPlanTemplateTodos,
+      async () => {
+        await db.mealPlanTemplateEntries.where('templateId').equals(templateId).delete()
+        await db.mealPlanTemplateTodos.where('templateId').equals(templateId).delete()
+        await db.mealPlanTemplates.delete(templateId)
+      },
+    )
+    await get().refresh()
+  },
+
+  async createMealPlanFromTemplate(templateId, name, weekStart) {
+    const template = await db.mealPlanTemplates.get(templateId)
+    if (!template) return undefined
+    const now = Date.now()
+    const plan: MealPlan = {
+      id: uid('mpl_'),
+      name: name.trim() || defaultMealPlanName(weekStart),
+      weekStart,
+      createdAt: now,
+      updatedAt: now,
+    }
+    await db.mealPlans.put(plan)
+    const entries = await db.mealPlanTemplateEntries.where('templateId').equals(templateId).toArray()
+    if (entries.length) {
+      await db.mealPlanEntries.bulkPut(
+        entries.map((e) => ({
+          id: uid('mple_'),
+          mealPlanId: plan.id,
+          recipeId: e.recipeId,
+          day: e.day,
+          slot: e.slot,
+          addedAt: now,
+        })),
+      )
+    }
+    const todos = await db.mealPlanTemplateTodos.where('templateId').equals(templateId).toArray()
+    if (todos.length) {
+      await db.mealPlanTodos.bulkPut(
+        todos.map((t) => ({ id: uid('mplt_'), mealPlanId: plan.id, text: t.text, checked: false, createdAt: now })),
+      )
+    }
+    await get().syncMealPlanShoppingItems(plan.id)
+    set({ activeMealPlanId: plan.id })
+    void get().updateSettings({ lastMealPlanId: plan.id })
+    await get().refresh()
+    return plan
+  },
+
   async updateMealPlan(id, patch) {
     await db.mealPlans.update(id, { ...patch, updatedAt: Date.now() })
     await get().refresh()
@@ -1199,6 +1311,9 @@ export const useApp = create<AppState>((set, get) => ({
         db.mealPlanShoppingItems,
         db.mealPlanIngredientChecks,
         db.mealPlanTodos,
+        db.mealPlanTemplates,
+        db.mealPlanTemplateEntries,
+        db.mealPlanTemplateTodos,
       ],
       async () => {
         if (mode === 'replace') {
@@ -1217,6 +1332,9 @@ export const useApp = create<AppState>((set, get) => ({
             db.mealPlanShoppingItems.clear(),
             db.mealPlanIngredientChecks.clear(),
             db.mealPlanTodos.clear(),
+            db.mealPlanTemplates.clear(),
+            db.mealPlanTemplateEntries.clear(),
+            db.mealPlanTemplateTodos.clear(),
           ])
         }
         await db.categories.bulkPut(data.categories)
@@ -1237,6 +1355,13 @@ export const useApp = create<AppState>((set, get) => ({
           await db.mealPlanIngredientChecks.bulkPut(data.mealPlanIngredientChecks)
         }
         if (data.mealPlanTodos) await db.mealPlanTodos.bulkPut(data.mealPlanTodos)
+        if (data.mealPlanTemplates) await db.mealPlanTemplates.bulkPut(data.mealPlanTemplates)
+        if (data.mealPlanTemplateEntries) {
+          await db.mealPlanTemplateEntries.bulkPut(data.mealPlanTemplateEntries)
+        }
+        if (data.mealPlanTemplateTodos) {
+          await db.mealPlanTemplateTodos.bulkPut(data.mealPlanTemplateTodos)
+        }
         if (data.settings && mode === 'replace') {
           await db.settings.put({ ...data.settings, id: 'settings' })
         }

@@ -84,10 +84,13 @@ export function MealPlannerPage() {
   const setActiveMealPlan = useApp((s) => s.setActiveMealPlan)
   const createMealPlan = useApp((s) => s.createMealPlan)
   const deleteMealPlan = useApp((s) => s.deleteMealPlan)
-  const duplicateMealPlan = useApp((s) => s.duplicateMealPlan)
   const updateSettings = useApp((s) => s.updateSettings)
   const settings = useApp((s) => s.settings)
   const toast = useApp((s) => s.toast)
+  const mealPlanTemplates = useApp((s) => s.mealPlanTemplates)
+  const mealPlanTemplateEntries = useApp((s) => s.mealPlanTemplateEntries)
+  const deleteMealPlanTemplate = useApp((s) => s.deleteMealPlanTemplate)
+  const createMealPlanFromTemplate = useApp((s) => s.createMealPlanFromTemplate)
 
   const [createOpen, setCreateOpen] = useState(false)
   const [colorOpen, setColorOpen] = useState(false)
@@ -151,6 +154,17 @@ export function MealPlannerPage() {
     () => [...mealPlans].sort((a, b) => b.createdAt - a.createdAt),
     [mealPlans],
   )
+
+  async function handleUseTemplate(templateId: string, week: string) {
+    await createMealPlanFromTemplate(templateId, defaultMealPlanName(week), week)
+    toast('Meal plan created from template.', 'success')
+  }
+
+  async function handleDeleteTemplate(templateId: string) {
+    if (!window.confirm('Delete this template?')) return
+    await deleteMealPlanTemplate(templateId)
+    toast('Template deleted.', 'success')
+  }
 
   return (
     <div className="px-4 sm:px-6 py-5 max-w-6xl mx-auto w-full">
@@ -276,20 +290,6 @@ export function MealPlannerPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={async (e) => {
-                        e.stopPropagation()
-                        const d = new Date(p.weekStart + 'T00:00:00'); d.setDate(d.getDate() + 7); const next = mondayOf(d)
-                        await duplicateMealPlan(p.id, next)
-                        toast('Meal plan reused for ' + next + '.', 'success')
-                      }}
-                      className="h-7 w-7 rounded-lg flex items-center justify-center text-content-muted hover:bg-surface-2 hover:text-content"
-                      aria-label="Reuse meal plan"
-                      title="Reuse for a future week"
-                    >
-                      <Plus size={13} />
-                    </button>
-                    <button
-                      type="button"
                       onClick={(e) => { e.stopPropagation(); handleDelete(p) }}
                       className="h-7 w-7 rounded-lg flex items-center justify-center text-content-muted hover:bg-surface-2 hover:text-red-500"
                       aria-label="Delete meal plan"
@@ -329,6 +329,25 @@ export function MealPlannerPage() {
             </div>
           )}
         </section>
+
+        {mealPlanTemplates.length > 0 && (
+          <section className="mb-6">
+            <h3 className="font-bold flex items-center gap-2 mb-3">
+              <LayoutGrid size={16} /> Templates
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {mealPlanTemplates.map((t) => (
+                <TemplateCard
+                  key={t.id}
+                  name={t.name}
+                  meals={mealPlanTemplateEntries.filter((e) => e.templateId === t.id).length}
+                  onUse={(week) => handleUseTemplate(t.id, week)}
+                  onDelete={() => handleDeleteTemplate(t.id)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
 
         {plan && (
           <MealPlanDetail plan={plan} onDelete={() => handleDelete(plan)} />
@@ -371,8 +390,8 @@ function MealPlanDetail({
   const addTodo = useApp((s) => s.addMealPlanTodo)
   const toggleTodo = useApp((s) => s.toggleMealPlanTodo)
   const deleteTodo = useApp((s) => s.deleteMealPlanTodo)
-  const duplicateMealPlan = useApp((s) => s.duplicateMealPlan)
   const toast = useApp((s) => s.toast)
+  const saveMealPlanAsTemplate = useApp((s) => s.saveMealPlanAsTemplate)
 
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerDay, setPickerDay] = useState(0)
@@ -435,13 +454,14 @@ function MealPlanDetail({
         <button
           className="btn-soft"
           onClick={async () => {
-            const next = mondayOf(new Date(new Date(plan.weekStart + 'T00:00:00').getTime() + 7 * 86400000))
-            await duplicateMealPlan(plan.id, next)
-            toast('Meal plan reused for ' + next + '.', 'success')
+            const name = window.prompt('Save this week as a template — name', plan.name)
+            if (name === null) return
+            await saveMealPlanAsTemplate(plan.id, name)
+            toast('Saved as a template.', 'success')
           }}
-          title="Copy this plan to a future week"
+          title="Save this week's meals as a reusable template"
         >
-          <Plus size={15} /> Reuse
+          <Plus size={15} /> Save as template
         </button>
         <button className="btn-soft text-red-500" onClick={onDelete}>
           <Trash2 size={15} /> Delete
@@ -678,6 +698,55 @@ function MealPlanDetail({
       <Modal open={pickerOpen} onClose={() => setPickerOpen(false)} title={`Add recipe — ${SLOT_LABEL[pickerSlot]}, ${DAYS[pickerDay]}`}>
         <RecipePicker recipes={recipes} onPick={pickRecipe} />
       </Modal>
+    </div>
+  )
+}
+
+function TemplateCard({
+  name,
+  meals,
+  onUse,
+  onDelete,
+}: {
+  name: string
+  meals: number
+  onUse: (week: string) => void
+  onDelete: () => void
+}) {
+  const [week, setWeek] = useState(mondayOf(new Date()))
+  return (
+    <div className="rounded-2xl border border-line bg-surface p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-semibold truncate">{name}</div>
+          <div className="text-xs text-content-muted mt-1">
+            {meals} {meals === 1 ? 'meal' : 'meals'}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="h-7 w-7 rounded-lg flex items-center justify-center text-content-muted hover:bg-surface-2 hover:text-red-500"
+          aria-label="Delete template"
+        >
+          <Trash2 size={13} />
+        </button>
+      </div>
+      <div className="flex items-end gap-2 mt-3">
+        <label className="flex-1 min-w-0">
+          <span className="text-[11px] text-content-muted block mb-1">Week starting</span>
+          <input
+            type="date"
+            value={week}
+            onChange={(e) => setWeek(e.target.value)}
+            className="w-full !py-1.5 text-sm"
+            aria-label="Week starting"
+          />
+        </label>
+        <button className="btn-soft shrink-0" onClick={() => onUse(week)}>
+          Use
+        </button>
+      </div>
     </div>
   )
 }
