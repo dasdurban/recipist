@@ -181,6 +181,7 @@ interface AppState {
   // meal planner (weekly)
   setActiveMealPlan: (id: string | null) => void
   createMealPlan: (name: string, weekStart: string) => Promise<MealPlan>
+  duplicateMealPlan: (id: string, weekStart?: string) => Promise<MealPlan | undefined>
   updateMealPlan: (id: string, patch: Partial<MealPlan>) => Promise<void>
   deleteMealPlan: (id: string) => Promise<void>
   addMealPlanEntry: (mealPlanId: string, recipeId: string, day: number, slot: MealSlot) => Promise<void>
@@ -976,6 +977,39 @@ export const useApp = create<AppState>((set, get) => ({
     return plan
   },
 
+  async duplicateMealPlan(id, weekStart) {
+    const src = await db.mealPlans.get(id)
+    if (!src) return undefined
+    const now = Date.now()
+    const d = new Date(src.weekStart + 'T00:00:00'); d.setDate(d.getDate() + 7); const newWeek = weekStart || mondayOf(d)
+    const plan: MealPlan = {
+      id: uid('mpl_'),
+      name: defaultMealPlanName(newWeek),
+      weekStart: newWeek,
+      createdAt: now,
+      updatedAt: now,
+    }
+    await db.mealPlans.put(plan)
+    const entries = await db.mealPlanEntries.where('mealPlanId').equals(id).toArray()
+    if (entries.length) {
+      await db.mealPlanEntries.bulkPut(
+        entries.map((e) => ({ ...e, id: uid('mple_'), mealPlanId: plan.id, addedAt: now })),
+      )
+    }
+    const todos = await db.mealPlanTodos.where('mealPlanId').equals(id).toArray()
+    if (todos.length) {
+      await db.mealPlanTodos.bulkPut(
+        todos.map((t) => ({ ...t, id: uid('mplt_'), mealPlanId: plan.id, checked: false, createdAt: now })),
+      )
+    }
+    const items = await db.mealPlanShoppingItems.where('mealPlanId').equals(id).toArray()
+    const manualItems = items.filter((i) => i.manual).map((i) => ({ ...i, id: uid('mpli_'), mealPlanId: plan.id, checked: false, createdAt: now }))
+    if (manualItems.length) await db.mealPlanShoppingItems.bulkPut(manualItems)
+    await get().syncMealPlanShoppingItems(plan.id)
+    set({ activeMealPlanId: plan.id })
+    await get().refresh()
+    return plan
+  },
   async updateMealPlan(id, patch) {
     await db.mealPlans.update(id, { ...patch, updatedAt: Date.now() })
     await get().refresh()

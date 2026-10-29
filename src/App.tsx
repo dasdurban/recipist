@@ -96,7 +96,11 @@ export default function App() {
 
   // opening a recipe (e.g. from sidebar search) must exit the shopping lists pages
   useEffect(() => {
-    if (activeRecipeId && shoppingListsOpen) setShoppingListsOpen(false)
+    if (activeRecipeId) {
+      if (shoppingListsOpen) setShoppingListsOpen(false)
+      if (eventPlannerOpen) setEventPlannerOpen(false)
+      if (mealPlannerOpen) setMealPlannerOpen(false)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRecipeId])
 
@@ -169,6 +173,7 @@ export default function App() {
       setSettingsOpen(false)
       setShoppingListsOpen(false)
       setEventPlannerOpen(false)
+      setMealPlannerOpen(false)
       useApp.getState().setActiveCategory(null)
     }
     window.addEventListener('recipist:home', handler)
@@ -184,6 +189,7 @@ export default function App() {
       setDeleteTarget(null)
       setSettingsOpen(false)
       setEventPlannerOpen(false)
+      setMealPlannerOpen(false)
       setShoppingListsOpen(true)
       useApp.setState({ activeShoppingListId: null }) // keep category/recipe context for back
     }
@@ -200,6 +206,7 @@ export default function App() {
       setDeleteTarget(null)
       setSettingsOpen(false)
       setShoppingListsOpen(false)
+      setMealPlannerOpen(false)
       setEventPlannerOpen(true)
       const eventId = (e as CustomEvent<{ eventId?: string }>).detail?.eventId ?? null
       useApp.getState().setActiveEvent(eventId)
@@ -231,6 +238,7 @@ export default function App() {
       const customEvent = e as CustomEvent<{ id: string }>
       setShoppingListsOpen(true)
       setEventPlannerOpen(false)
+      setMealPlannerOpen(false)
       setEditing(null)
       setImportOpen(false)
       setCategoryDialog({ open: false, category: null })
@@ -248,6 +256,7 @@ export default function App() {
       const customEvent = e as CustomEvent<{ id: string }>
       setShoppingListsOpen(false)
       setEventPlannerOpen(false)
+      setMealPlannerOpen(false)
       setEditing(null)
       setImportOpen(false)
       setCategoryDialog({ open: false, category: null })

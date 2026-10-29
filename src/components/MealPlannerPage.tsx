@@ -85,6 +85,7 @@ export function MealPlannerPage() {
   const setActiveMealPlan = useApp((s) => s.setActiveMealPlan)
   const createMealPlan = useApp((s) => s.createMealPlan)
   const deleteMealPlan = useApp((s) => s.deleteMealPlan)
+  const duplicateMealPlan = useApp((s) => s.duplicateMealPlan)
   const updateSettings = useApp((s) => s.updateSettings)
   const settings = useApp((s) => s.settings)
   const toast = useApp((s) => s.toast)
@@ -250,6 +251,20 @@ export function MealPlannerPage() {
                     </div>
                     <button
                       type="button"
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        const d = new Date(p.weekStart + 'T00:00:00'); d.setDate(d.getDate() + 7); const next = mondayOf(d)
+                        await duplicateMealPlan(p.id, next)
+                        toast('Meal plan reused for ' + next + '.', 'success')
+                      }}
+                      className="h-7 w-7 rounded-lg flex items-center justify-center text-content-muted hover:bg-surface-2 hover:text-content"
+                      aria-label="Reuse meal plan"
+                      title="Reuse for a future week"
+                    >
+                      <Plus size={13} />
+                    </button>
+                    <button
+                      type="button"
                       onClick={(e) => { e.stopPropagation(); handleDelete(p) }}
                       className="h-7 w-7 rounded-lg flex items-center justify-center text-content-muted hover:bg-surface-2 hover:text-red-500"
                       aria-label="Delete meal plan"
@@ -333,6 +348,8 @@ function MealPlanDetail({
   const addTodo = useApp((s) => s.addMealPlanTodo)
   const toggleTodo = useApp((s) => s.toggleMealPlanTodo)
   const deleteTodo = useApp((s) => s.deleteMealPlanTodo)
+  const duplicateMealPlan = useApp((s) => s.duplicateMealPlan)
+  const toast = useApp((s) => s.toast)
 
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerDay, setPickerDay] = useState(0)
@@ -395,6 +412,17 @@ function MealPlanDetail({
           <h3 className="font-bold text-lg truncate">{plan.name}</h3>
           <p className="text-sm text-content-muted">{fmtWeek(plan.weekStart)}</p>
         </div>
+        <button
+          className="btn-soft"
+          onClick={async () => {
+            const next = mondayOf(new Date(new Date(plan.weekStart + 'T00:00:00').getTime() + 7 * 86400000))
+            await duplicateMealPlan(plan.id, next)
+            toast('Meal plan reused for ' + next + '.', 'success')
+          }}
+          title="Copy this plan to a future week"
+        >
+          <Plus size={15} /> Reuse
+        </button>
         <button className="btn-soft text-red-500" onClick={onDelete}>
           <Trash2 size={15} /> Delete
         </button>
