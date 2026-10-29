@@ -9,12 +9,15 @@ import {
   PanelsTopLeft,
   Pencil,
   Plus,
+  Salad,
   ShoppingCart,
   Trash2,
   X,
 } from 'lucide-react'
 import { useApp } from '../store/useApp'
 import { ColorPicker } from './ui/ColorPicker'
+import { parseIngredient } from '../lib/nutrition'
+import { combineIngredients } from '../lib/combineIngredients'
 import { Modal } from './ui/Modal'
 import { colorFor, prefersLightText } from '../lib/colors'
 import type {
@@ -320,11 +323,14 @@ function MealPlanDetail({
   const [pickerSlot, setPickerSlot] = useState<MealSlot>('dinner')
   const [todoText, setTodoText] = useState('')
   const [manualName, setManualName] = useState('')
-  const [manualQty, setManualQty] = useState('')
-  const [manualUnit, setManualUnit] = useState('')
 
   const recipeById = useMemo(() => new Map(recipes.map((r) => [r.id, r])), [recipes])
   const pantryKeys = useMemo(() => new Set(checks.filter((c) => c.pantry).map((c) => c.key)), [checks])
+  const included = useMemo(() => {
+    const ids = [...new Set(entries.map((e) => e.recipeId))]
+    return ids.map((id) => recipeById.get(id)).filter(Boolean) as Recipe[]
+  }, [entries, recipeById])
+  const ingredients = useMemo(() => combineIngredients(included), [included])
 
   const byCell = useMemo(() => {
     const m = new Map<string, MealPlanEntry[]>()
@@ -348,13 +354,11 @@ function MealPlanDetail({
   }
 
   async function addManual() {
-    const name = manualName.trim()
-    if (!name) return
-    const qty = manualQty.trim() ? Number(manualQty) : undefined
-    await addShopping(plan.id, { name, quantity: Number.isFinite(qty) ? qty : undefined, unit: manualUnit.trim() || undefined, raw: name })
+    const raw = manualName.trim()
+    if (!raw) return
+    const parsed = parseIngredient(raw)
+    await addShopping(plan.id, { name: parsed.name, quantity: parsed.quantity, unit: parsed.unit, raw })
     setManualName('')
-    setManualQty('')
-    setManualUnit('')
   }
 
   async function addTodoItem() {
@@ -364,7 +368,6 @@ function MealPlanDetail({
     setTodoText('')
   }
 
-  const allNeeded = shoppingItems.filter((i) => !i.checked)
 
   return (
     <div className="space-y-5">
@@ -446,64 +449,71 @@ function MealPlanDetail({
           <h4 className="font-bold flex items-center gap-2 mb-3">
             <ShoppingCart size={16} /> Shopping list
           </h4>
-          <div className="space-y-1.5 max-h-72 overflow-auto">
-            {allNeeded.length === 0 && (
-              <p className="text-sm text-content-muted">Nothing needed — check items off below or add manually.</p>
-            )}
-            {allNeeded.map((item) => (
-              <label key={item.id} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={item.checked}
-                  onChange={() => toggleShopping(item.id)}
-                  className="h-4 w-4"
-                />
-                <span className="flex-1 truncate">{itemLabel(item)}</span>
-                {!item.manual && (
-                  <button
-                    type="button"
-                    onClick={() => togglePantry(plan.id, item.key)}
-                    className="text-xs text-content-muted hover:text-content"
-                    title="Mark as already in pantry"
-                  >
-                    pantry
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => deleteShopping(item.id)}
-                  className="text-content-muted hover:text-red-500"
-                  aria-label="Delete"
-                >
-                  <X size={13} />
-                </button>
-              </label>
-            ))}
-          </div>
-          <div className="flex gap-2 mt-3">
+          <p className="text-[11px] text-content-muted mb-3">
+            {shoppingItems.length} item{shoppingItems.length === 1 ? '' : 's'} · {shoppingItems.filter((i) => i.checked).length} checked · auto-filled from your recipes
+          </p>
+
+          <div className="flex items-center gap-1.5 pb-3 mb-3 border-b border-line">
             <input
               value={manualName}
               onChange={(e) => setManualName(e.target.value)}
-              placeholder="Add item"
-              className="flex-1 text-sm"
               onKeyDown={(e) => { if (e.key === 'Enter') addManual() }}
+              placeholder="Add item — e.g. 2 cups olive oil"
+              className="!py-1.5 text-sm flex-1 min-w-0"
+              aria-label="Add shopping list item"
             />
-            <input
-              value={manualQty}
-              onChange={(e) => setManualQty(e.target.value)}
-              placeholder="qty"
-              className="w-14 text-sm"
-            />
-            <input
-              value={manualUnit}
-              onChange={(e) => setManualUnit(e.target.value)}
-              placeholder="unit"
-              className="w-16 text-sm"
-            />
-            <button className="btn-soft !px-2" onClick={addManual}>
-              <Plus size={14} />
+            <button className="btn-soft !py-1.5 shrink-0" onClick={addManual} disabled={!manualName.trim()}>
+              <Plus size={15} />
             </button>
           </div>
+
+          {shoppingItems.length === 0 ? (
+            <p className="text-sm text-content-muted">
+              Nothing here yet — add recipes to the week, or add items by hand above.
+            </p>
+          ) : (
+            <ul className="space-y-1">
+              {[...shoppingItems]
+                .sort((a, b) => Number(a.checked) - Number(b.checked) || a.name.localeCompare(b.name))
+                .map((item) => (
+                  <li
+                    key={item.id}
+                    className="flex items-start gap-2.5 rounded-lg p-2 bg-surface-2 hover:bg-surface-3 transition-colors group"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={item.checked}
+                      onChange={() => toggleShopping(item.id)}
+                      className="mt-0.5 h-4 w-4 shrink-0"
+                      aria-label={'Check ' + itemLabel(item)}
+                    />
+                    <span className={'flex-1 min-w-0 text-sm ' + (item.checked ? 'line-through text-content-muted' : '')}>
+                      {itemLabel(item)}
+                      {!item.manual && (
+                        <span className="ml-1.5 text-[10px] uppercase tracking-wide text-content-muted">auto</span>
+                      )}
+                    </span>
+                    {!item.manual && (
+                      <button
+                        type="button"
+                        onClick={() => togglePantry(plan.id, item.key)}
+                        className="text-xs text-content-muted hover:text-content shrink-0"
+                        title="Mark as already in pantry"
+                      >
+                        pantry
+                      </button>
+                    )}
+                    <button
+                      className="btn-ghost !p-1 text-content-muted hover:text-red-600 opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0"
+                      onClick={() => deleteShopping(item.id)}
+                      aria-label="Remove item"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          )}
           {pantryKeys.size > 0 && (
             <p className="text-xs text-content-muted mt-2">
               {pantryKeys.size} ingredient{pantryKeys.size === 1 ? '' : 's'} marked as in pantry.
@@ -511,39 +521,47 @@ function MealPlanDetail({
           )}
         </div>
 
-        {/* Pantry checks */}
+        {/* All ingredients (pantry checks) */}
         <div className="rounded-2xl border border-line bg-surface p-4">
-          <h4 className="font-bold mb-3">Pantry check</h4>
-          <p className="text-xs text-content-muted mb-2">
-            Tick anything you already have — it drops off the shopping list.
+          <h4 className="font-bold flex items-center gap-2 mb-3">
+            <Salad size={16} className="text-brand" /> All ingredients
+          </h4>
+          <p className="text-[11px] text-content-muted mb-3">
+            Generated from the week's recipes — check pantry items to remove them from the shopping list
           </p>
-          <div className="space-y-1.5 max-h-72 overflow-auto">
-            {entries.length === 0 && (
-              <p className="text-sm text-content-muted">Add recipes to the week first.</p>
-            )}
-            {Array.from(new Set(entries.map((e) => e.recipeId)))
-              .flatMap((rid) => {
-                const r = recipeById.get(rid)
-                return r ? [r] : []
-              })
-              .length === 0 && null}
-            {Array.from(pantryKeys).length === 0 && entries.length > 0 && (
-              <p className="text-sm text-content-muted">No auto ingredients yet.</p>
-            )}
-            {Array.from(
-              new Set(
-                entries.flatMap((e) => {
-                  const r = recipeById.get(e.recipeId)
-                  return r ? [r] : []
-                }),
-              ),
-            ).length > 0 && (
-              <div className="text-xs text-content-muted">
-                Pantry flags are per ingredient. Use the "pantry" link next to each
-                shopping row to toggle.
-              </div>
-            )}
-          </div>
+          {ingredients.length === 0 ? (
+            <p className="text-sm text-content-muted">
+              Add recipes to the week and their ingredients appear here automatically.
+            </p>
+          ) : (
+            <ul className="space-y-1">
+              {ingredients.map((ing) => {
+                const inPantry = pantryKeys.has(ing.key)
+                return (
+                  <li
+                    key={ing.key}
+                    className="flex items-start gap-2.5 rounded-lg p-2 bg-surface-2 hover:bg-surface-3 transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={inPantry}
+                      onChange={() => togglePantry(plan.id, ing.key)}
+                      className="mt-0.5 h-4 w-4 shrink-0"
+                      aria-label={'I already have ' + ing.name + ' in the pantry'}
+                    />
+                    <span className={'flex-1 min-w-0 text-sm ' + (inPantry ? 'line-through text-content-muted' : '')}>
+                      {ing.label}
+                      {inPantry && (
+                        <span className="ml-1.5 text-[10px] uppercase tracking-wide text-content-muted">
+                          pantry
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
         </div>
 
         {/* Todos */}
