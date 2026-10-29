@@ -140,6 +140,8 @@ export const DEFAULT_SETTINGS: Settings = {
   favoritesColorSet: 'vivid',
   plannerColorName: 'purple',
   plannerColorSet: 'vivid',
+  mealPlannerColorName: 'blue',
+  mealPlannerColorSet: 'vivid',
   plannerView: 'cards',
   shoppingView: 'cards',
   sidebarCollapsed: false,

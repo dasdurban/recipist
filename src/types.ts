@@ -285,6 +285,9 @@ export interface Settings {
   /** color of the Event planner title box */
   plannerColorName: ColorName
   plannerColorSet: ColorSet
+  /** color of the Meal planner title box */
+  mealPlannerColorName: ColorName
+  mealPlannerColorSet: ColorSet
   /** how the events are laid out on the Event planner page */
   plannerView: PlannerView
   /** how the shopping lists are laid out on the Shopping lists page */

@@ -51,7 +51,18 @@ function mondayOf(d: Date): string {
   const day = date.getDay()
   const diff = day === 0 ? -6 : 1 - day
   date.setDate(date.getDate() + diff)
-  return date.toISOString().slice(0, 10)
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
+}
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+function defaultMealPlanName(weekStart: string): string {
+  const d = new Date(`${weekStart}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return 'New meal plan'
+  return `Week of ${d.getDate()} ${MONTHS[d.getMonth()]}`
 }
 
 function fmtWeek(weekStart: string): string {
@@ -84,7 +95,7 @@ export function MealPlannerPage() {
   const [newWeek, setNewWeek] = useState(mondayOf(new Date()))
   const nameInput = useRef<HTMLInputElement>(null)
 
-  const hex = colorFor(settings.plannerColorName, settings.plannerColorSet)
+  const hex = colorFor(settings.mealPlannerColorName, settings.mealPlannerColorSet)
   const view = settings.plannerView
 
   useEffect(() => {
@@ -98,7 +109,7 @@ export function MealPlannerPage() {
   const plan = mealPlans.find((p) => p.id === activeMealPlanId) ?? null
 
   async function handleCreate() {
-    const name = newName.trim() || 'New meal plan'
+    const name = newName.trim() || defaultMealPlanName(newWeek)
     await createMealPlan(name, newWeek)
     setCreateOpen(false)
     toast('Meal plan created.', 'success')
@@ -156,10 +167,7 @@ export function MealPlannerPage() {
         </div>
       </div>
 
-      {plan ? (
-        <MealPlanDetail plan={plan} onBack={() => setActiveMealPlan(null)} onDelete={() => handleDelete(plan)} />
-      ) : (
-        <>
+      <>
         {createOpen && (
           <div className="rounded-2xl border border-line bg-surface p-5 mb-5 space-y-4">
             <h3 className="font-bold">New meal plan</h3>
@@ -170,7 +178,7 @@ export function MealPlannerPage() {
                   ref={nameInput}
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Week of 27 Oct"
+                  placeholder={defaultMealPlanName(newWeek)}
                   className="w-full"
                   onKeyDown={(e) => { if (e.key === 'Enter') handleCreate() }}
                 />
@@ -281,14 +289,17 @@ export function MealPlannerPage() {
             </div>
           )}
         </section>
-        </>
-      )}
+
+        {plan && (
+          <MealPlanDetail plan={plan} onBack={() => setActiveMealPlan(null)} onDelete={() => handleDelete(plan)} />
+        )}
+      </>
 
       <Modal open={colorOpen} onClose={() => setColorOpen(false)} title="Planner color">
         <ColorPicker
           colorSet={settings.plannerColorSet}
           colorName={settings.plannerColorName}
-          onChange={(next) => updateSettings({ plannerColorName: next.colorName, plannerColorSet: next.colorSet })}
+          onChange={(next) => updateSettings({ mealPlannerColorName: next.colorName, mealPlannerColorSet: next.colorSet })}
         />
       </Modal>
     </div>

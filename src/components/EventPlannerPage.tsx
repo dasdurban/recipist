@@ -154,10 +154,7 @@ export function EventPlannerPage() {
         </div>
       </div>
 
-      {event ? (
-        <EventDetail event={event} onBack={() => setActiveEvent(null)} onDelete={() => handleDelete(event)} />
-      ) : (
-        <>
+      <>
           {/* Events section */}
           <section className="mb-6">
             <div className="flex items-center justify-between gap-3 mb-3">
@@ -257,8 +254,11 @@ export function EventPlannerPage() {
               </div>
             )}
           </section>
-        </>
-      )}
+
+        {event && (
+          <EventDetail event={event} onBack={() => setActiveEvent(null)} onDelete={() => handleDelete(event)} />
+        )}
+      </>
 
       {/* Event planner colour picker */}
       <Modal

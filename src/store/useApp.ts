@@ -41,7 +41,18 @@ function mondayOf(d: Date): string {
   const day = date.getDay()
   const diff = day === 0 ? -6 : 1 - day
   date.setDate(date.getDate() + diff)
-  return date.toISOString().slice(0, 10)
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
+}
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+function defaultMealPlanName(weekStart: string): string {
+  const d = new Date(`${weekStart}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return 'New meal plan'
+  return `Week of ${d.getDate()} ${MONTHS[d.getMonth()]}`
 }
 
 interface AppState {
@@ -954,7 +965,7 @@ export const useApp = create<AppState>((set, get) => ({
     const now = Date.now()
     const plan: MealPlan = {
       id: uid('mpl_'),
-      name: name.trim() || 'New meal plan',
+      name: name.trim() || defaultMealPlanName(weekStart),
       weekStart: weekStart || mondayOf(new Date()),
       createdAt: now,
       updatedAt: now,
