@@ -159,6 +159,39 @@ export function MealPlannerPage() {
       {plan ? (
         <MealPlanDetail plan={plan} onBack={() => setActiveMealPlan(null)} onDelete={() => handleDelete(plan)} />
       ) : (
+        <>
+        {createOpen && (
+          <div className="rounded-2xl border border-line bg-surface p-5 mb-5 space-y-4">
+            <h3 className="font-bold">New meal plan</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium block mb-1">Name</label>
+                <input
+                  ref={nameInput}
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Week of 27 Oct"
+                  className="w-full"
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleCreate() }}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1">Week starting (Monday)</label>
+                <input
+                  type="date"
+                  value={newWeek}
+                  onChange={(e) => setNewWeek(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button className="btn-soft" onClick={() => setCreateOpen(false)}>Cancel</button>
+              <button className="btn-primary" onClick={handleCreate}>Create</button>
+            </div>
+          </div>
+        )}
+
         <section>
           <div className="flex items-center justify-between gap-3 mb-3">
             <h3 className="font-bold flex items-center gap-2">
@@ -248,36 +281,8 @@ export function MealPlannerPage() {
             </div>
           )}
         </section>
+        </>
       )}
-
-      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="New meal plan">
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium block mb-1">Name</label>
-            <input
-              ref={nameInput}
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Week of 27 Oct"
-              className="w-full"
-              onKeyDown={(e) => { if (e.key === 'Enter') handleCreate() }}
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium block mb-1">Week starting (Monday)</label>
-            <input
-              type="date"
-              value={newWeek}
-              onChange={(e) => setNewWeek(e.target.value)}
-              className="w-full"
-            />
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <button className="btn-soft" onClick={() => setCreateOpen(false)}>Cancel</button>
-            <button className="btn-primary" onClick={handleCreate}>Create</button>
-          </div>
-        </div>
-      </Modal>
 
       <Modal open={colorOpen} onClose={() => setColorOpen(false)} title="Planner color">
         <ColorPicker
