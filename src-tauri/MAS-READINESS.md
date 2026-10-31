@@ -120,14 +120,17 @@ camera/microphone (photos come from disk, not capture).
 
 - `NSPrivacyTracking: false` — there is no analytics, telemetry, ad SDK or
   fingerprinting anywhere in the codebase (verified by search).
-- Three collected-data entries, all `linked: false` and `tracking: false`:
-  - `OtherUserContent` — the recipes the user creates or imports
-  - `PhotosorVideos` — images imported for OCR
-  - `OtherDataTypes` — the user's own sync credentials for their own provider
-- Three required-reason API categories:
+- **No collected-data entries.** The manifest's `NSPrivacyCollectedDataTypes`
+  array is empty, which matches the App Store "Data Not Collected" answer.
+  "Collected" means data leaves the device in a way that lets the developer or a
+  third party access it; recipes, meal plans, templates, photos, settings and
+  sync credentials all stay in the app's own container, and sync goes only to a
+  provider the user configured. Earlier revisions declared three "collected"
+  types here even though the developer never receives them, which contradicted
+  the App Privacy label; they were removed.
+- Two required-reason API categories:
   - `FileTimestamp` / `C617.1` — timestamps of files in the app container
   - `UserDefaults` / `CA92.1` — IndexedDB and the timer's localStorage
-  - `DiskSpace` / `E174.1` — checking space before writing a backup
 
 Verified against Apple's published reason-code list.
 

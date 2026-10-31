@@ -46,82 +46,20 @@
   -->
   <key>NSPrivacyCollectedDataTypes</key>
   <array>
-
     <!--
-      Recipe content the user creates or imports.
+      Nothing is collected.
 
-      Stored locally in IndexedDB. Leaves the device only when the user turns on
-      sync, and then only to the storage provider they configured themselves.
-      Not collected by the developer — the developer operates no server that
-      receives it. (The optional Lambda proxy is opt-in and passes the requested
-      page through without retaining it; if you enable it, it is still purely
-      user-initiated App Functionality.)
+      "Collected" means data leaves the device in a way that lets the developer
+      or a third party access it. Everything this app handles - recipes, meal
+      plans, templates, photos, settings, sync credentials - is stored in the
+      app's own container on the user's device. The only outbound traffic is
+      user-initiated: a recipe page the user asks to import (through a proxy
+      the user can change), the OCR model download, and optional sync to a
+      storage provider the user configures with their own credentials. The
+      developer operates no server that receives any of it.
 
-      NOTE: "Other User Content" is the closest available type for user-authored
-      recipe records. This is intentional and correct for this app.
+      This therefore matches the App Store "Data Not Collected" answer.
     -->
-    <dict>
-      <key>NSPrivacyCollectedDataType</key>
-      <string>NSPrivacyCollectedDataTypeOtherUserContent</string>
-      <key>NSPrivacyCollectedDataTypeLinked</key>
-      <false/>
-      <key>NSPrivacyCollectedDataTypeTracking</key>
-      <false/>
-      <key>NSPrivacyCollectedDataTypePurposes</key>
-      <array>
-        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
-      </array>
-    </dict>
-
-    <!--
-      Photos the user imports for OCR (scanning a recipe off a page or card).
-
-      The image is read locally, handed to tesseract.js to extract text, and the
-      photo is saved into the local recipe record. It is never uploaded to the
-      developer.
-
-      On the FIRST scan the recognition worker and its language model are
-      downloaded from cdn.jsdelivr.net; the model is then cached in the app's
-      own IndexedDB. The image itself is never part of that request — only the
-      first-run download touches the network. Marked as Photos or Videos, which
-      is the closest available type for an image the user supplies.
-    -->
-    <dict>
-      <key>NSPrivacyCollectedDataType</key>
-      <string>NSPrivacyCollectedDataTypePhotosorVideos</string>
-      <key>NSPrivacyCollectedDataTypeLinked</key>
-      <false/>
-      <key>NSPrivacyCollectedDataTypeTracking</key>
-      <false/>
-      <key>NSPrivacyCollectedDataTypePurposes</key>
-      <array>
-        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
-      </array>
-    </dict>
-
-    <!--
-      Sync credentials, when the user configures WebDAV or an OAuth provider.
-
-      The user's own username/password/client secret for THEIR storage provider.
-      Stored locally in the app container with the rest of the settings. Sent
-      only to the provider the user named. Not visible to the developer.
-
-      Declared as "Other" — it is user-provided configuration rather than a
-      credential for an account held with the developer.
-    -->
-    <dict>
-      <key>NSPrivacyCollectedDataType</key>
-      <string>NSPrivacyCollectedDataTypeOtherDataTypes</string>
-      <key>NSPrivacyCollectedDataTypeLinked</key>
-      <false/>
-      <key>NSPrivacyCollectedDataTypeTracking</key>
-      <false/>
-      <key>NSPrivacyCollectedDataTypePurposes</key>
-      <array>
-        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
-      </array>
-    </dict>
-
   </array>
 
   <!--

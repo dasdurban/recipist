@@ -1,6 +1,6 @@
 # Privacy Policy — The Recipe App
 
-**Last updated: 19 October 2026**
+**Last updated: 31 October 2026**
 
 The Recipe App ("the app") is a personal recipe organiser. This policy explains
 what information the app handles, where it goes, and what control you have over
@@ -22,7 +22,7 @@ question about this policy or your data, contact:
 
 ### Recipes and notes you create or import
 
-Recipes, ingredients, instructions, categories, shopping lists, event plans,
+Recipes, ingredients, instructions, categories, shopping lists, event plans, meal plans, meal-plan templates,
 photos and any notes you add are stored **locally on your device** in the app's
 own storage area. This includes:
 
