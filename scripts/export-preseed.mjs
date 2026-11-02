@@ -23,7 +23,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
-const outputPath = join(repoRoot, 'public', 'preseed.json')
+const outputPath = join(repoRoot, 'src', 'assets', 'preseed.json')
 const cdpUrl = process.env.CDP_URL ?? 'http://127.0.0.1:9222'
 
 // Reads every object store of the app's IndexedDB with the plain IndexedDB API,
@@ -110,7 +110,7 @@ if (backup.recipes.length === 0) {
   process.exit(1)
 }
 
-await mkdir(join(repoRoot, 'public'), { recursive: true })
+await mkdir(join(repoRoot, 'src', 'assets'), { recursive: true })
 await writeFile(outputPath, `${JSON.stringify(backup, null, 2)}\n`, 'utf8')
 
 console.log(`Wrote ${outputPath}`)
