@@ -51,3 +51,4 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+# Triggered 2026-11-01: rebuild after the seed now loads by module import.
