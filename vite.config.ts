@@ -47,10 +47,6 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
-        // The seed is loaded on demand only when the database is empty. Fetching
-        // it into the install-time precache would download 6.7 MB for every
-        // install, including the ones that already have their own recipes.
-        globIgnores: ['**/preseed-*.js'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallback: 'index.html',
       },

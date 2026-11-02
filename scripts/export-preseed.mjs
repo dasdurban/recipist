@@ -1,9 +1,13 @@
-// Exports the app's database to src/assets/preseed.json.
+// Exports the app's database to src-tauri/resources/preseed.json.
 //
 // The seed is what a fresh install starts with on every platform. It has to be
 // plain JSON produced by the app itself, not a copy of the browser's IndexedDB
 // files: WebView2, WKWebView and Android's WebView each store those in their own
 // format, so a copied folder only ever works on the machine that made it.
+//
+// The seed lives in src-tauri/resources so Tauri bundles it into the app's
+// resource directory and reads it through the fs plugin. fetch() and dynamic
+// imports both fail on the macOS webview, so this file is loaded natively.
 //
 // This talks to a running copy of the app over the DevTools protocol, which has
 // to be started with a debug port:
@@ -16,14 +20,14 @@
 //     node scripts/export-preseed.mjs
 //
 // Re-run it whenever the seed should pick up newer content, then rebuild: the
-// JSON is bundled into the frontend, so every target gets the same data.
+// JSON is bundled into the app, so every target gets the same data.
 
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
-const outputPath = join(repoRoot, 'src', 'assets', 'preseed.json')
+const outputPath = join(repoRoot, 'src-tauri', 'resources', 'preseed.json')
 const cdpUrl = process.env.CDP_URL ?? 'http://127.0.0.1:9222'
 
 // Reads every object store of the app's IndexedDB with the plain IndexedDB API,
@@ -110,7 +114,7 @@ if (backup.recipes.length === 0) {
   process.exit(1)
 }
 
-await mkdir(join(repoRoot, 'src', 'assets'), { recursive: true })
+await mkdir(join(repoRoot, 'src-tauri', 'resources'), { recursive: true })
 await writeFile(outputPath, `${JSON.stringify(backup, null, 2)}\n`, 'utf8')
 
 console.log(`Wrote ${outputPath}`)

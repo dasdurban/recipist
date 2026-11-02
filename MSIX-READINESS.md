@@ -405,19 +405,19 @@ Every build can start with the same content, which is what makes a test build
 useful on a platform you cannot reach: Windows, macOS, Linux and mobile all get
 the same recipes instead of an empty app.
 
-The seed is `src/assets/preseed.json`, in the app's own backup format. It is
-bundled into the frontend and loaded with a dynamic import (as raw JSON), so it
-costs nothing at startup once an install has content, and it is read with the
-same code on every platform.
+The seed is `src-tauri/resources/preseed.json`, in the app's own backup format.
+Tauri bundles it into the app's resource directory and `src/lib/preseed.ts`
+reads it with the file-system plugin, so it costs nothing at startup once an
+install has content, and it is read with the same code on every platform.
 
-It is deliberately **not fetched at runtime**. WKWebView (macOS) refuses
-`fetch()` on the `tauri://` scheme, so an earlier version that fetched
-`/preseed.json` silently fell back to the starter categories and sample recipe
-on a fresh Mac. A module import goes through the same loader as the app itself,
-so it works on macOS, Windows and Linux. A copy of the browser's IndexedDB
-folder would *not* work either: WebView2, WKWebView and Android's WebView each
-store it differently, so a copied folder only ever works on the machine that
-made it.
+It is deliberately **not fetched or dynamically imported**. WKWebView (macOS)
+refuses `fetch()` on the `tauri://` scheme, and it can silently fail to load ES
+modules from a custom protocol, so earlier versions that used those methods
+silently fell back to the starter categories and sample recipe on a fresh Mac.
+Reading the file through the Tauri fs plugin works on macOS, Windows and Linux.
+A copy of the browser's IndexedDB folder would *not* work either: WebView2,
+WKWebView and Android's WebView each store it differently, so a copied folder
+only ever works on the machine that made it.
 
 `src/lib/preseed.ts` applies it only when the database has no categories and no
 recipes, and only before the store loads. A fresh install therefore opens
@@ -435,9 +435,9 @@ $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"
 node scripts/export-preseed.mjs
 ```
 
-That rewrites `src/assets/preseed.json`. Rebuild after it: the JSON is bundled
-into the frontend, so the MSI, NSIS installer, MSIX, `.deb`, macOS app and mobile
-builds all carry the same content.
+That rewrites `src-tauri/resources/preseed.json`. Rebuild after it: the JSON is
+bundled into the app, so the MSI, NSIS installer, MSIX, `.deb`, macOS app and
+mobile builds all carry the same content.
 
 ## Files
 
@@ -448,5 +448,5 @@ builds all carry the same content.
 | `src-tauri/msix/identity.json` | Your real values (gitignored) |
 | `scripts/build-msix.ps1` | Stages, then registers or packs |
 | `scripts/check-offline-installer.sh` | Proves WebView2 is embedded |
-| `src/assets/preseed.json` | Content every fresh install starts with |
+| `src-tauri/resources/preseed.json` | Content every fresh install starts with |
 | `scripts/export-preseed.mjs` | Rewrites the seed from a running app |
