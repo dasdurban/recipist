@@ -39,8 +39,9 @@ jobs:
         run: npm ci
 
       # Universal binary so the same .dmg runs on Apple Silicon and Intel.
-      # The seed (public/preseed.json) is part of the frontend bundle, so it
-      # ships inside the app exactly as it does on Windows.
+      # The seed (src-tauri/resources/preseed.json) is bundled into the app by
+      # Tauri and read through the fs plugin, so it ships inside the app exactly
+      # as it does on Windows.
       - name: Build the universal .dmg
         run: npm run tauri:build -- --target universal-apple-darwin --bundles dmg
 
@@ -51,4 +52,4 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
-# Triggered 2026-11-01: rebuild after the seed now loads by module import.
+# Triggered 2026-11-02: rebuild after switching the seed to the Tauri fs plugin.
