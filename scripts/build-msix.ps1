@@ -142,8 +142,29 @@ Copy-Item $binary (Join-Path $staging "recipist.exe")
 # Debug symbols are deliberately excluded. They serve no purpose in a shipped
 # package, and a release build does emit a .pdb next to the binary.
 Get-ChildItem (Split-Path $binary) -File |
-  Where-Object { $_.Extension -in ".dll", ".json" -and $_.Name -ne "recipist.exe" } |
+  Where-Object { $_.Extension -in ".dll" -and $_.Name -ne "recipist.exe" } |
   ForEach-Object { Copy-Item $_.FullName $staging }
+
+# Bundled resources are declared in tauri.conf.json under bundle.resources and
+# read at runtime from the resource directory. On Windows the resource directory
+# is the directory that contains the executable, so copy each configured resource
+# target directly into the staging root.
+$bundle = Get-Content (Join-Path $srcTauri "tauri.conf.json") -Raw | ConvertFrom-Json
+$resources = $bundle.bundle.resources
+if ($resources) {
+  foreach ($source in $resources.PSObject.Properties.Name) {
+    $target = $resources.$source
+    $sourcePath = Join-Path $srcTauri $source
+    $targetPath = Join-Path $staging $target
+    if (-not (Test-Path $sourcePath)) {
+      Write-Warning "Configured resource not found: $sourcePath"
+      continue
+    }
+    New-Item -ItemType Directory -Path (Split-Path $targetPath) -Force | Out-Null
+    Copy-Item $sourcePath $targetPath -Force
+    Write-Host "Copied resource $source -> $target"
+  }
+}
 
 # --- assets ----------------------------------------------------------------
 

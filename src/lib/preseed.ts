@@ -48,9 +48,10 @@ export async function seedFromBundledBackup(): Promise<boolean> {
       if (!response.ok) return false
       seed = (await response.json()) as Partial<BackupFile>
     }
-  } catch {
+  } catch (error) {
     // No seed shipped, or it could not be read. A fresh install then falls back
     // to the starter categories and sample recipe.
+    console.error('[seed] could not load bundled seed:', error)
     return false
   }
 
