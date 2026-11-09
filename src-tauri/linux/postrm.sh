@@ -1,6 +1,6 @@
 #!/bin/sh
 # Runs after the .deb is removed. Cleans up the desktop entry that postinst.sh
-# copied to the GTK application id, which the package manager does not track.
+# renamed to the GTK application id, which the package manager does not track.
 set -e
 
 APP_ID="com.recipist.app"

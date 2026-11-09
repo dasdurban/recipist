@@ -9,8 +9,10 @@
 # entry by application id. They look for com.recipist.app.desktop, do not
 # find it, and fall back to a generic icon in the dock and the app switcher.
 #
-# Renaming (actually copying) the entry to the app id fixes that lookup while
-# keeping the friendly "The Recipe App" display name inside the file.
+# Renaming the entry to the app id fixes that lookup while keeping the friendly
+# "The Recipe App" display name inside the file. It has to be a rename, not a
+# copy: leaving the original behind lists the app twice, and the entry whose
+# filename does not match the app id never picks up the running window.
 set -e
 
 APP_ID="com.recipist.app"
@@ -32,7 +34,7 @@ for f in "$DESKTOP_DIR"/*.desktop; do
 done
 
 if [ -n "$SOURCE" ]; then
-  cp -f "$SOURCE" "$DESKTOP_DIR/$APP_ID.desktop"
+  mv -f "$SOURCE" "$DESKTOP_DIR/$APP_ID.desktop"
 fi
 
 # Refresh the desktop database so the new entry is picked up immediately.
