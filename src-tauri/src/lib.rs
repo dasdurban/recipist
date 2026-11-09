@@ -671,7 +671,21 @@ pub fn run() {
         // Restores the main window to the size and place it was left at, and
         // records them again on close. Registered before the window is created
         // so there is a state to restore on the very first frame.
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        //
+        // The timer window is excluded: it has a fixed height and the frontend
+        // places it beside the main window on every launch, so restoring a
+        // stale geometry would only fight that.
+        //
+        // Linux caveat: on Wayland a client cannot place its own window — there
+        // is no global coordinate space, and `set_position` is a no-op. The size
+        // restores everywhere; the position only restores under X11. GTK reports
+        // no position at all on Wayland, so what gets saved there is 0,0 and the
+        // compositor decides, which is the best any app can do.
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_denylist(&["timer"])
+                .build(),
+        )
         // Native shell plugins. The webview can't open a new window (no
         // `new_window_req_handler` is registered, so wry denies it) and its
         // downloads aren't wired up without an `on_download` hook — these three
@@ -742,9 +756,21 @@ pub fn run() {
             // geometry by this point, so this is the moment to reject a saved
             // position that no longer lands on a connected monitor.
             #[cfg(desktop)]
-            {
-                if let Some(window) = app.get_webview_window("main") {
-                    keep_window_on_screen(&window);
+            if let Some(window) = app.get_webview_window("main") {
+                keep_window_on_screen(&window);
+
+                // The window is created hidden so the saved geometry is applied
+                // before it is ever mapped: on Linux a window that is already
+                // on screen gets placed by the window manager, and the resize
+                // that follows reads as a jump at best and is ignored at worst.
+                // The state plugin shows it once the geometry is restored — but
+                // it does that from a chain of fallible calls, so if anything in
+                // that chain failed the app would come up invisible. Showing it
+                // here is the difference between "geometry ignored" and "app
+                // looks dead".
+                if !window.is_visible().unwrap_or(false) {
+                    let _ = window.show();
+                    let _ = window.set_focus();
                 }
             }
 

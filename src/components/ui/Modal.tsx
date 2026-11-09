@@ -43,9 +43,9 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
         aria-modal="true"
         className={clsx(
           'relative w-full bg-surface border border-line shadow-2xl animate-slide-up',
-          'rounded-t-2xl sm:rounded-2xl max-h-[92vh] flex flex-col',
+          'rounded-t-2xl sm:rounded-2xl max-h-[94vh] flex flex-col',
           size === 'sm' && 'sm:max-w-md',
-          size === 'md' && 'sm:max-w-lg',
+          size === 'md' && 'sm:max-w-xl',
           size === 'lg' && 'sm:max-w-2xl',
           size === 'xl' && 'sm:max-w-4xl',
         )}
@@ -58,7 +58,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
             </button>
           </header>
         )}
-        <div className="px-5 py-4 overflow-y-auto safe-bottom">{children}</div>
+        <div className="px-5 pt-4 pb-6 overflow-y-auto safe-bottom">{children}</div>
         {footer && (
           <footer className="px-5 py-3.5 border-t border-line flex items-center justify-end gap-2 shrink-0">
             {footer}

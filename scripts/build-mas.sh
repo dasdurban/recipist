@@ -260,12 +260,25 @@ cat <<EOF
 $(bold "Done.")
 
   Bundle:  $APP
-  Next:    upload it to App Store Connect with Transporter, or:
+
+  Upload it to App Store Connect. Transporter takes a .pkg for macOS, not a bare
+  .app, so build one first — this needs a "Mac Installer Distribution" identity:
+
+    APP="$APP"
+    productbuild --component "\$APP" /Applications \\
+      --sign "Mac Installer Distribution: Your Name (TEAMID)" \\
+      "The Recipe App.pkg"
+
+  Then drag "The Recipe App.pkg" into Transporter.
+
+  Shortcut, if that installer identity is not set up yet: altool accepts the .app
+  directly, though Apple has deprecated it.
 
     xcrun altool --upload-app \\
       --type macos \\
-      --file "src-tauri/target/release/bundle/macos/The Recipe App.app" \\
+      --file "$APP" \\
       --apiKey <KEY_ID> --apiIssuer <ISSUER_ID>
 
-  Upload the .app (not the .dmg) — Apple's tooling packages it for the Store.
+  Either way, the app record must already exist in App Store Connect with bundle
+  ID $BUNDLE_ID, or the build has nothing to attach to.
 EOF
