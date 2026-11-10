@@ -1,7 +1,7 @@
 {
   "name": "recipist",
   "private": true,
-  "version": "0.2.5",
+  "version": "0.2.6",
   "type": "module",
   "description": "The Recipe App - collect, import and organize your recipes. PWA + iOS/Android/macOS/iPadOS/Linux/Windows.",
   "scripts": {
