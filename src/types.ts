@@ -304,6 +304,9 @@ export interface Settings {
   /** color of the built-in "Favorites" view (not a real category) */
   favoritesColorName: ColorName
   favoritesColorSet: ColorSet
+  /** color of the built-in "All healthy recipes" view (not a real category) */
+  healthyColorName: ColorName
+  healthyColorSet: ColorSet
   /** color of the Event planner title box */
   plannerColorName: ColorName
   plannerColorSet: ColorSet

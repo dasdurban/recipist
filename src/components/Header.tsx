@@ -1,6 +1,6 @@
 import { ArrowLeft, Menu, Printer, Settings as SettingsIcon } from 'lucide-react'
 import { useApp } from '../store/useApp'
-import { FAVORITES_ID } from '../lib/nav'
+import { FAVORITES_ID, HEALTHY_ID } from '../lib/nav'
 import { TomatoLogo } from './TomatoLogo'
 import { KitchenTimerIcon } from './KitchenTimerIcon'
 import { useState } from 'react'
@@ -57,9 +57,11 @@ export function Header({
         ? shoppingList.name
         : activeCategoryId === FAVORITES_ID
           ? 'Favorites'
-          : category
-            ? category.name
-            : 'All recipes'
+          : activeCategoryId === HEALTHY_ID
+            ? 'All healthy recipes'
+            : category
+              ? category.name
+              : 'All recipes'
 
   return (
     <header className="safe-top safe-x sticky top-0 z-30 bg-surface/85 backdrop-blur border-b border-line shrink-0 print-hidden">

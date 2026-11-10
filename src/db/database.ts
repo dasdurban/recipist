@@ -165,6 +165,8 @@ export const DEFAULT_SETTINGS: Settings = {
   allRecipesColorSet: 'vivid',
   favoritesColorName: 'red',
   favoritesColorSet: 'vivid',
+  healthyColorName: 'green',
+  healthyColorSet: 'vivid',
   plannerColorName: 'purple',
   plannerColorSet: 'vivid',
   mealPlannerColorName: 'blue',

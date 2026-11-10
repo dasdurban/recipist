@@ -3,8 +3,9 @@ import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import { ChevronRight, Heart, Plus, List, CalendarDays, GripVertical } from 'lucide-react'
 import clsx from 'clsx'
 import { useApp } from '../store/useApp'
-import { allRecipesColor, colorFor, favoritesColor } from '../lib/colors'
-import { FAVORITES_ID } from '../lib/nav'
+import { allRecipesColor, colorFor, favoritesColor, healthyColor } from '../lib/colors'
+import { isHealthyRecipe } from '../lib/health'
+import { FAVORITES_ID, HEALTHY_ID } from '../lib/nav'
 import { TomatoLogo } from './TomatoLogo'
 
 /**
@@ -150,6 +151,7 @@ const mealPlans = useApp((s) => s.mealPlans)
   }, [recipes, filter])
 
   const favorites = recipes.filter((r) => r.favorite).length
+  const healthy = recipes.filter(isHealthyRecipe).length
 
   function goHome() {
     setFilter('')
@@ -159,6 +161,11 @@ const mealPlans = useApp((s) => s.mealPlans)
   function selectFavorites() {
     setFilter('')
     window.dispatchEvent(new CustomEvent('recipist:select-category', { detail: { id: FAVORITES_ID } }))
+  }
+
+  function selectHealthy() {
+    setFilter('')
+    window.dispatchEvent(new CustomEvent('recipist:select-category', { detail: { id: HEALTHY_ID } }))
   }
 
   function selectCategory(id: string) {
@@ -207,6 +214,13 @@ const mealPlans = useApp((s) => s.mealPlans)
           </>
         ) : (
           <>
+            <NavRow
+              label="All healthy recipes"
+              count={healthy}
+              active={activeCategoryId === HEALTHY_ID}
+              color={healthyColor(settings)}
+              onClick={selectHealthy}
+            />
             <NavRow
               label="All recipes"
               count={recipes.length}
