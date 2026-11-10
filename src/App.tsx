@@ -18,7 +18,7 @@ import { Toasts } from './components/ui/Toasts'
 import { TomatoLogo } from './components/TomatoLogo'
 import { seedIfEmpty, seedSampleRecipeIfEmpty } from './lib/seed'
 import { DEFAULT_SETTINGS } from './db/database'
-import { FAVORITES_ID } from './lib/nav'
+import { FAVORITES_ID, HEALTHY_ID } from './lib/nav'
 
 export default function App() {
   const ready = useApp((s) => s.ready)
@@ -308,6 +308,7 @@ export default function App() {
             <CategoryPage
               category={activeCategory}
               favoritesOnly={activeCategoryId === FAVORITES_ID}
+              healthyOnly={activeCategoryId === HEALTHY_ID}
               onEditCategory={
                 activeCategory
                   ? () => setCategoryDialog({ open: true, category: activeCategory.id })
@@ -317,7 +318,9 @@ export default function App() {
                 setEditingIsNew(true)
                 setEditing(
                   emptyRecipe(
-                    activeCategoryId && activeCategoryId !== FAVORITES_ID
+                    activeCategoryId &&
+                      activeCategoryId !== FAVORITES_ID &&
+                      activeCategoryId !== HEALTHY_ID
                       ? activeCategoryId
                       : categories[0]?.id ?? '',
                   ),
@@ -338,7 +341,11 @@ export default function App() {
       <ImportDialog
         open={importOpen}
         initialUrl={importUrl}
-        defaultCategoryId={activeCategoryId === FAVORITES_ID ? null : activeCategoryId}
+        defaultCategoryId={
+          activeCategoryId === FAVORITES_ID || activeCategoryId === HEALTHY_ID
+            ? null
+            : activeCategoryId
+        }
         onClose={() => {
           setImportOpen(false)
           setImportUrl(null)

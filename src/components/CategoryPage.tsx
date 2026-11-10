@@ -4,8 +4,20 @@ import clsx from 'clsx'
 import { GripVertical, Pencil, Plus, RotateCcw, Search, UtensilsCrossed } from 'lucide-react'
 import type { Category } from '../types'
 import { useApp } from '../store/useApp'
-import { allRecipesColor, colorFor, favoritesColor, prefersLightText } from '../lib/colors'
-import { ALL_RECIPES_VIEW, FAVORITES_VIEW, sortRecipesForView } from '../lib/recipeOrder'
+import {
+  allRecipesColor,
+  colorFor,
+  favoritesColor,
+  healthyColor,
+  prefersLightText,
+} from '../lib/colors'
+import { isHealthyRecipe } from '../lib/health'
+import {
+  ALL_RECIPES_VIEW,
+  FAVORITES_VIEW,
+  HEALTHY_VIEW,
+  sortRecipesForView,
+} from '../lib/recipeOrder'
 import { ColorPicker } from './ui/ColorPicker'
 import { Modal } from './ui/Modal'
 import { RecipeCard } from './RecipeCard'
@@ -14,12 +26,14 @@ import { RecipeCard } from './RecipeCard'
 export function CategoryPage({
   category,
   favoritesOnly,
+  healthyOnly,
   onEditCategory,
   onNewRecipe,
   onImport,
 }: {
   category: Category | null
   favoritesOnly?: boolean
+  healthyOnly?: boolean
   onEditCategory?: () => void
   onNewRecipe: () => void
   onImport: () => void
@@ -48,28 +62,45 @@ export function CategoryPage({
   const orderAtGrabRef = useRef<string[] | null>(null)
 
   /** Which stored arrangement this grid is showing. */
-  const viewId = favoritesOnly ? FAVORITES_VIEW : category ? category.id : ALL_RECIPES_VIEW
+  const viewId = favoritesOnly
+    ? FAVORITES_VIEW
+    : healthyOnly
+      ? HEALTHY_VIEW
+      : category
+        ? category.id
+        : ALL_RECIPES_VIEW
 
   useEffect(() => {
     setQuery('')
     setColorOpen(false)
-  }, [category?.id, favoritesOnly])
+  }, [category?.id, favoritesOnly, healthyOnly])
 
-  /** "All recipes" and "Favorites" are virtual views, not categories, so their
-   * color is a setting the user can change right here. */
-  const virtual = favoritesOnly || !category
+  /** "All recipes", "Favorites" and "All healthy recipes" are virtual views, not
+   * categories, so their color is a setting the user can change right here. */
+  const virtual = favoritesOnly || healthyOnly || !category
   const hex = favoritesOnly
     ? favoritesColor(settings)
-    : category
-      ? colorFor(category.colorName, category.colorSet)
-      : allRecipesColor(settings)
+    : healthyOnly
+      ? healthyColor(settings)
+      : category
+        ? colorFor(category.colorName, category.colorSet)
+        : allRecipesColor(settings)
+
+  /** The label these virtual views use in the color picker and titles. */
+  const virtualLabel = favoritesOnly
+    ? 'Favorites'
+    : healthyOnly
+      ? 'All healthy recipes'
+      : 'All recipes'
 
   const shown = useMemo(() => {
     const inCategory = favoritesOnly
       ? recipes.filter((r) => r.favorite)
-      : category
-        ? recipes.filter((r) => r.categoryIds.includes(category.id))
-        : recipes
+      : healthyOnly
+        ? recipes.filter(isHealthyRecipe)
+        : category
+          ? recipes.filter((r) => r.categoryIds.includes(category.id))
+          : recipes
     const q = query.trim().toLowerCase()
     const searched = q
       ? inCategory.filter(
@@ -91,7 +122,7 @@ export function CategoryPage({
       const recipe = byId.get(id)
       return recipe ? [recipe] : []
     })
-  }, [recipes, recipeOrders, viewId, category, favoritesOnly, query, previewIds])
+  }, [recipes, recipeOrders, viewId, category, favoritesOnly, healthyOnly, query, previewIds])
 
   const hasCustomOrder = useMemo(
     () => recipeOrders.some((order) => order.viewId === viewId),
@@ -282,21 +313,28 @@ export function CategoryPage({
           />
           <div className="min-w-0 flex-1">
             <h2 className="text-xl font-bold truncate">
-              {favoritesOnly ? '★ Favorites' : category ? category.name : 'All recipes'}
+              {favoritesOnly
+                ? '★ Favorites'
+                : healthyOnly
+                  ? 'All healthy recipes'
+                  : category
+                    ? category.name
+                    : 'All recipes'}
             </h2>
             <p className="text-sm text-content-muted">
               {shown.length} {shown.length === 1 ? 'recipe' : 'recipes'}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {/* Virtual views ("All recipes", "Favorites") get their own color,
-                shown as a swatch button in the title box, left of Import. */}
+            {/* Virtual views ("All recipes", "Favorites", "All healthy
+                recipes") get their own color, shown as a swatch button in the
+                title box, left of Import. */}
             {virtual && (
               <button
                 type="button"
                 onClick={() => setColorOpen(true)}
-                title={`Change the ${favoritesOnly ? 'Favorites' : 'All recipes'} color`}
-                aria-label={`Change the ${favoritesOnly ? 'Favorites' : 'All recipes'} color`}
+                title={`Change the ${virtualLabel} color`}
+                aria-label={`Change the ${virtualLabel} color`}
                 className="h-9 w-9 rounded-xl shrink-0 flex items-center justify-center transition-transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-content ring-offset-2 ring-offset-surface"
                 style={{ backgroundColor: hex }}
               >
@@ -369,12 +407,18 @@ export function CategoryPage({
             <UtensilsCrossed size={26} style={{ color: hex }} />
           </div>
           <h3 className="font-semibold">
-            {favoritesOnly ? 'No favorites yet' : 'Nothing here yet'}
+            {favoritesOnly
+              ? 'No favorites yet'
+              : healthyOnly
+                ? 'No healthy recipes yet'
+                : 'Nothing here yet'}
           </h3>
           <p className="text-sm text-content-muted mt-1 mb-5">
             {favoritesOnly
               ? 'Tap the heart on a recipe to save it here.'
-              : 'Add a recipe by hand, paste a link, or scan a photo.'}
+              : healthyOnly
+                ? 'Recipes that score 60 or higher on the health index appear here automatically.'
+                : 'Add a recipe by hand, paste a link, or scan a photo.'}
           </p>
           <div className="flex justify-center gap-2">
             <button className="btn-soft" onClick={onImport}>
@@ -538,7 +582,7 @@ export function CategoryPage({
         <Modal
           open={colorOpen}
           onClose={() => setColorOpen(false)}
-          title={favoritesOnly ? 'Favorites color' : 'All recipes color'}
+          title={`${virtualLabel} color`}
           size="md"
           footer={
             <button className="btn-primary" onClick={() => setColorOpen(false)}>
@@ -547,13 +591,27 @@ export function CategoryPage({
           }
         >
           <ColorPicker
-            colorSet={favoritesOnly ? settings.favoritesColorSet : settings.allRecipesColorSet}
-            colorName={favoritesOnly ? settings.favoritesColorName : settings.allRecipesColorName}
+            colorSet={
+              favoritesOnly
+                ? settings.favoritesColorSet
+                : healthyOnly
+                  ? settings.healthyColorSet
+                  : settings.allRecipesColorSet
+            }
+            colorName={
+              favoritesOnly
+                ? settings.favoritesColorName
+                : healthyOnly
+                  ? settings.healthyColorName
+                  : settings.allRecipesColorName
+            }
             onChange={(next) =>
               updateSettings(
                 favoritesOnly
                   ? { favoritesColorName: next.colorName, favoritesColorSet: next.colorSet }
-                  : { allRecipesColorName: next.colorName, allRecipesColorSet: next.colorSet },
+                  : healthyOnly
+                    ? { healthyColorName: next.colorName, healthyColorSet: next.colorSet }
+                    : { allRecipesColorName: next.colorName, allRecipesColorSet: next.colorSet },
               )
             }
           />

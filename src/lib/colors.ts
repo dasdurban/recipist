@@ -95,6 +95,11 @@ export function favoritesColor(settings: Settings): string {
   return colorFor(settings.favoritesColorName, settings.favoritesColorSet)
 }
 
+/** Color of the virtual "All healthy recipes" view (its color lives in settings). */
+export function healthyColor(settings: Settings): string {
+  return colorFor(settings.healthyColorName, settings.healthyColorSet)
+}
+
 /** Returns true when text should be light (for contrast against `hex`). */
 export function prefersLightText(hex: string): boolean {
   const c = hex.replace('#', '')

@@ -20,6 +20,9 @@ export const ALL_RECIPES_VIEW = 'all'
 /** The view id used by the Favorites grid. */
 export const FAVORITES_VIEW = 'favorites'
 
+/** The view id used by the "All healthy recipes" grid. */
+export const HEALTHY_VIEW = 'healthy'
+
 /** How far apart newly appended positions are placed when there is no neighbour. */
 const STEP = 1000
 
