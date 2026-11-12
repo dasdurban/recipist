@@ -5,42 +5,61 @@
 # "The Recipe App" (spaces and all). However `app.enableGTKAppId` gives the
 # window the GTK application id from `identifier`, i.e. com.recipist.app.
 #
-# GNOME and other Wayland compositors match a running window to its desktop
-# entry by application id. They look for com.recipist.app.desktop, do not
-# find it, and fall back to a generic icon in the dock and the app switcher.
+# GNOME and other Wayland compositors associate a running window with the
+# desktop entry *of the same file name*: they look for com.recipist.app.desktop
+# and, when it is missing, fall back to a generic icon in the dock and the app
+# switcher.
 #
-# Renaming the entry to the app id fixes that lookup while keeping the friendly
-# "The Recipe App" display name inside the file. It has to be a rename, not a
-# copy: leaving the original behind lists the app twice, and the entry whose
-# filename does not match the app id never picks up the running window.
+# Renaming keeps exactly one entry: it is named for the app id, so Wayland and
+# GNOME find it, and its StartupWMClass=recipist line still lets X11 desktops
+# match the window by WM_CLASS. A second entry with the same Name is a second
+# icon in the menu, so anything else in the system application directories that
+# launches the same binary is removed too — those files are leftovers from an
+# older install or a discarded AppImage, never something this package needs.
 set -e
 
 APP_ID="com.recipist.app"
 DESKTOP_DIR="/usr/share/applications"
+TARGET="$DESKTOP_DIR/$APP_ID.desktop"
 
-# Tauri derives the filename from productName. Match it loosely so this keeps
-# working if the display name ever changes.
-SOURCE=""
-for f in "$DESKTOP_DIR"/*.desktop; do
-  [ -e "$f" ] || continue
-  case "$(basename "$f")" in
-    "$APP_ID.desktop") continue ;;
-  esac
-  # Only adopt a file that this package is responsible for.
-  if grep -q '^Exec=recipist$' "$f" 2>/dev/null; then
-    SOURCE="$f"
-    break
-  fi
+# The package's own entry, plus any strays in the other system data directory
+# (XDG_DATA_DIRS defaults to /usr/local/share:/usr/share). User-level entries
+# in ~/.local/share/applications are left alone: they belong to the user.
+set --
+for dir in "$DESKTOP_DIR" /usr/local/share/applications; do
+  [ -d "$dir" ] || continue
+  for f in "$dir"/*.desktop; do
+    [ -e "$f" ] || continue
+    [ "$f" = "$TARGET" ] && continue
+    # Exec is written by the template as `recipist`; accept a field-code
+    # suffix too, in case a future template adds %U.
+    if grep -q '^Exec=recipist\([[:space:]]\|$\)' "$f" 2>/dev/null; then
+      set -- "$@" "$f"
+    fi
+  done
 done
 
-if [ -n "$SOURCE" ]; then
-  mv -f "$SOURCE" "$DESKTOP_DIR/$APP_ID.desktop"
+# The first candidate is the entry the build generated; the rest are strays.
+if [ "$#" -gt 0 ]; then
+  mv -f "$1" "$TARGET"
+  shift
+  for f in "$@"; do
+    rm -f "$f"
+  done
 fi
 
-# Refresh the desktop database so the new entry is picked up immediately.
+# Refresh the desktop database so the rename is picked up immediately.
 if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$DESKTOP_DIR" >/dev/null 2>&1 || true
 fi
+
+# KDE keeps its own service cache; rebuild it when the tooling is present.
+for cache in kbuildsycoca6 kbuildsycoca5; do
+  if command -v "$cache" >/dev/null 2>&1; then
+    "$cache" >/dev/null 2>&1 || true
+    break
+  fi
+done
 
 # Refresh the icon cache if the tooling is present. Both calls are optional:
 # a headless install may not have them, and neither is fatal.
